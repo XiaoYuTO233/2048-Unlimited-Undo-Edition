@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#faf8ef" />
+<title>2048 · 无限撤销版</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23edc22e'/%3E%3C/svg%3E" />
+<style>
+  /* ================= 基础 ================= */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px 14px;
+    background: #faf8ef;
+    color: #776e65;
+    font-family: "Helvetica Neue", "Segoe UI", Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+  .game { width: 94vw; max-width: 440px; }
+  .game { width: min(94vw, 440px, 68vh); }
+  .game { width: min(94vw, 440px, 68dvh); }
+
+  /* ================= 头部 ================= */
+  header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  h1 { margin: 0; font-size: 40px; font-size: clamp(32px, 9vw, 48px); line-height: 1; letter-spacing: -1px; font-weight: 800; }
+  .subtitle { margin: 6px 0 0; font-size: 12px; letter-spacing: 3px; color: #a89b8f; }
+
+  .scores { display: flex; gap: 8px; }
+  .score-box {
+    position: relative;
+    min-width: 84px;
+    padding: 7px 14px 8px;
+    text-align: center;
+    background: #bbada0;
+    border-radius: 8px;
+    color: #f9f6f2;
+  }
+  .score-box .label { display: block; font-size: 11px; letter-spacing: 1px; color: #eee4da; }
+  .score-box strong { display: inline-block; font-size: 18px; font-size: clamp(16px, 4.6vw, 21px); font-weight: 800; line-height: 1.25; }
+  .score-fly {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 15px;
+    font-weight: 800;
+    color: #776e65;
+    pointer-events: none;
+    animation: fly .7s ease-out forwards;
+    z-index: 3;
+  }
+  @keyframes fly {
+    0% { opacity: 1; transform: translate(-50%, 4px); }
+    100% { opacity: 0; transform: translate(-50%, -30px); }
+  }
+  .bump { animation: bump .18s ease-out; }
+  @keyframes bump { 50% { transform: scale(1.15); } }
+
+  /* ================= 按钮 ================= */
+  .controls { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #8f7a66;
+    color: #f9f6f2;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color .15s ease, transform .06s ease, opacity .15s ease;
+  }
+  .btn:hover { background: #9d8874; }
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:disabled:active { transform: none; }
+  .btn .ico { font-size: 16px; line-height: 1; }
+  .btn .count {
+    display: none;
+    min-width: 20px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .22);
+    font-size: 12px;
+    text-align: center;
+  }
+  .btn .count.has { display: inline-block; }
+
+  /* ================= 棋盘 ================= */
+  .board {
+    position: relative;
+    width: 100%;
+    background: #bbada0;
+    border-radius: 12px;
+    touch-action: none;
+    cursor: grab;
+    box-shadow: 0 10px 28px rgba(187, 173, 160, .28);
+  }
+  /* 纯 CSS 撑出正方形（兼容性优于 aspect-ratio） */
+  .board::before { content: ""; display: block; padding-top: 100%; }
+  .board.dragging { cursor: grabbing; }
+
+  .layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .cell {
+    position: absolute;
+    width: 21.25%;
+    height: 21.25%;
+    background: rgba(238, 228, 218, .35);
+    border-radius: 8px;
+  }
+
+  /* 脚本被预览环境拦截时的提示（脚本能执行会自动移除） */
+  .boot-hint {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 26px;
+    text-align: center;
+    color: #8f7a66;
+    font-size: 13.5px;
+    line-height: 1.9;
+    pointer-events: none;
+  }
+  .boot-hint strong { font-size: 16px; }
+
+  .tile {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-weight: 800;
+    line-height: 1;
+    transition: left .12s ease, top .12s ease;
+    will-change: left, top;
+    font-size: var(--fs, 40px);
+  }
+  .tile.d3 { font-size: var(--fs3, 32px); }
+  .tile.d4 { font-size: var(--fs4, 26px); }
+  .tile.d5 { font-size: var(--fs5, 21px); }
+
+  .tile-2 { background: #eee4da; color: #776e65; }
+  .tile-4 { background: #ede0c8; color: #776e65; }
+  .tile-8 { background: #f2b179; color: #f9f6f2; }
+  .tile-16 { background: #f59563; color: #f9f6f2; }
+  .tile-32 { background: #f67c5f; color: #f9f6f2; }
+  .tile-64 { background: #f65e3b; color: #f9f6f2; }
+  .tile-128 { background: #edcf72; color: #f9f6f2; }
+  .tile-256 { background: #edcc61; color: #f9f6f2; }
+  .tile-512 { background: #edc850; color: #f9f6f2; }
+  .tile-1024 { background: #edc53f; color: #f9f6f2; box-shadow: 0 0 16px rgba(237, 197, 63, .45); }
+  .tile-2048 { background: #edc22e; color: #f9f6f2; box-shadow: 0 0 18px rgba(237, 194, 46, .6); }
+  .tile-super { background: #3c3a32; color: #f9f6f2; }
+
+  .tile-spawn { animation: tile-appear .16s ease-out .1s both; }
+  @keyframes tile-appear { from { transform: scale(0); } to { transform: scale(1); } }
+  .tile-pop { animation: tile-pop .18s ease-in-out; }
+  @keyframes tile-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.18); } }
+  .tile-restore { animation: tile-restore .16s ease-out; }
+  @keyframes tile-restore { from { opacity: .3; transform: scale(.9); } to { opacity: 1; transform: scale(1); } }
+
+  /* ================= 结束 / 胜利浮层 ================= */
+  .overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 12px;
+    text-align: center;
+    background: rgba(238, 228, 218, .78);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .25s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .overlay.clickable { cursor: pointer; }
+  .overlay .msg { margin: 0; font-size: var(--fsMsg, 32px); font-weight: 800; }
+  .overlay .sub { margin: 0; font-size: 13px; color: #8f7a66; max-width: 270px; line-height: 1.8; }
+
+  /* ================= 底部提示 ================= */
+  .tips { margin: 14px 0 0; font-size: 12.5px; line-height: 1.9; color: #a89b8f; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="game">
+  <header>
+    <div>
+      <h1>2048</h1>
+      <p class="subtitle">无限撤销版</p>
+    </div>
+    <div class="scores">
+      <div class="score-box" id="scoreBox"><span class="label">得分</span><strong id="score">0</strong></div>
+      <div class="score-box"><span class="label">最高分</span><strong id="best">0</strong></div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="undoBtn" class="btn" type="button" disabled title="回到上一步（可无限次撤销）">
+      <span class="ico">↩</span>撤销<span class="count" id="undoCount"></span>
+    </button>
+    <button id="newBtn" class="btn" type="button"><span class="ico">↻</span>新游戏</button>
+  </div>
+
+  <div class="board" id="board">
+    <!-- 背景格子：纯静态渲染（左/上位置与 JS 中 POS 常量一致：3 + n*24.25） -->
+    <div class="cell" style="left:3%;top:3%"></div>
+    <div class="cell" style="left:27.25%;top:3%"></div>
+    <div class="cell" style="left:51.5%;top:3%"></div>
+    <div class="cell" style="left:75.75%;top:3%"></div>
+    <div class="cell" style="left:3%;top:27.25%"></div>
+    <div class="cell" style="left:27.25%;top:27.25%"></div>
+    <div class="cell" style="left:51.5%;top:27.25%"></div>
+    <div class="cell" style="left:75.75%;top:27.25%"></div>
+    <div class="cell" style="left:3%;top:51.5%"></div>
+    <div class="cell" style="left:27.25%;top:51.5%"></div>
+    <div class="cell" style="left:51.5%;top:51.5%"></div>
+    <div class="cell" style="left:75.75%;top:51.5%"></div>
+    <div class="cell" style="left:3%;top:75.75%"></div>
+    <div class="cell" style="left:27.25%;top:75.75%"></div>
+    <div class="cell" style="left:51.5%;top:75.75%"></div>
+    <div class="cell" style="left:75.75%;top:75.75%"></div>
+    <div class="layer" id="tileLayer"></div>
+    <div class="boot-hint" id="bootHint">
+      <strong>正在加载…</strong>
+      <span>如果此提示一直停留，说明当前环境没有执行页面脚本（部分「文件预览」和内置浏览器会拦截脚本）。<br>请点击右上角「用浏览器打开」，即可正常游玩。</span>
+    </div>
+    <div class="overlay" id="overlay">
+      <p class="msg" id="overlayMsg"></p>
+      <p class="sub" id="overlaySub"></p>
+    </div>
+  </div>
+
+  <p class="tips">
+    电脑：方向键 / WASD / 鼠标拖动棋盘 · Ctrl+Z 撤销<br>
+    手机：在棋盘上滑动<br>
+    每次有效移动都会记录，可无限次「撤销」
+  </p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  /* ================= 几何常量（棋盘宽度的百分比） ================= */
+  const SIZE = 4;
+  const PAD = 3;
+  const GAP = 3;
+  const CELL = (100 - PAD * 2 - GAP * (SIZE - 1)) / SIZE;    // 21.25
+  const STEP = CELL + GAP;                                   // 24.25
+  const POS = Array.from({ length: SIZE }, (_, i) => PAD + i * STEP);
+  const SLIDE_MS = 120;                                      // 滑动动画时长
+
+  /* ================= DOM ================= */
+  const $ = (s) => document.querySelector(s);
+  const boardEl = $('#board');
+  const tileLayer = $('#tileLayer');
+  const overlayEl = $('#overlay');
+  const overlayMsg = $('#overlayMsg');
+  const overlaySub = $('#overlaySub');
+  const scoreEl = $('#score');
+  const bestEl = $('#best');
+  const scoreBox = $('#scoreBox');
+  const undoBtn = $('#undoBtn');
+  const undoCountEl = $('#undoCount');
+  const newBtn = $('#newBtn');
+
+  /* ================= 状态 ================= */
+  let nextId = 1;
+  let pending = null;        // 正在播放、等待收尾的动画
+  const state = {
+    grid: createEmptyGrid(), // 4x4，存方块对象或 null
+    score: 0,
+    won: false,              // 是否已达成 2048
+    keepPlaying: false,      // 胜利后是否选择继续
+    over: false,
+    history: [],             // 快照栈：支持无限撤销
+  };
+  let best = loadBest();
+
+  /* ================= 小工具 ================= */
+  function createEmptyGrid() {
+    return Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+  }
+  function loadBest() {
+    try { return Number(localStorage.getItem('game2048.best')) || 0; } catch (_) { return 0; }
+  }
+  function saveBest() {
+    try { localStorage.setItem('game2048.best', String(best)); } catch (_) { /* 忽略 */ }
+  }
+  function tileClasses(v) {
+    const colorCls = v <= 2048 ? 'tile-' + v : 'tile-super';
+    return colorCls + ' d' + Math.min(String(v).length, 5);
+  }
+  function clearChildren(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+  function removeEl(el) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+  function toggleClass(el, cls, on) {
+    if (on) el.classList.add(cls);
+    else el.classList.remove(cls);
+  }
+
+  /* ================= 方块 ================= */
+  function createTile(value, r, c, opts = {}) {
+    const el = document.createElement('div');
+    let extra = '';
+    if (opts.spawn) extra = ' tile-spawn';
+    else if (opts.restore) extra = ' tile-restore';
+    el.className = 'tile ' + tileClasses(value) + extra;
+    el.textContent = value;
+    el.style.width = CELL + '%';
+    el.style.height = CELL + '%';
+    el.style.left = POS[c] + '%';
+    el.style.top = POS[r] + '%';
+    tileLayer.appendChild(el);
+    return { id: nextId++, value, r, c, merged: false, el };
+  }
+
+  function setTilePos(el, r, c) {
+    el.style.left = POS[c] + '%';
+    el.style.top = POS[r] + '%';
+  }
+
+  function refreshTile(tile, pop) {
+    tile.el.textContent = tile.value;
+    tile.el.className = 'tile ' + tileClasses(tile.value);
+    if (pop) {
+      void tile.el.offsetWidth;   // 强制回流，重新触发弹出动画
+      tile.el.classList.add('tile-pop');
+    }
+  }
+
+  /* ================= 快照（无限撤销的核心） ================= */
+  function takeSnapshot() {
+    return {
+      values: state.grid.map((row) => row.map((t) => (t ? t.value : 0))),
+      score: state.score,
+      won: state.won,
+      keepPlaying: state.keepPlaying,
+      over: state.over,
+    };
+  }
+
+  /* ================= 生成随机方块 ================= */
+  function spawnRandomTile() {
+    const empties = [];
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        if (!state.grid[r][c]) empties.push([r, c]);
+      }
+    }
+    if (!empties.length) return null;
+    const [r, c] = empties[Math.floor(Math.random() * empties.length)];
+    const value = Math.random() < 0.9 ? 2 : 4;   // 90% 出 2，10% 出 4
+    const tile = createTile(value, r, c, { spawn: true });
+    state.grid[r][c] = tile;
+    return tile;
+  }
+
+  /* ================= 移动与合并 ================= */
+  const VECTORS = { up: [-1, 0], down: [1, 0], left: [0, -1], right: [0, 1] };
+
+  function traversalOrder(dir) {
+    const rs = [0, 1, 2, 3];
+    const cs = [0, 1, 2, 3];
+    if (dir === 'right') cs.reverse();   // 从滑动方向的前方格子开始处理
+    if (dir === 'down') rs.reverse();
+    const cells = [];
+    for (const r of rs) for (const c of cs) cells.push([r, c]);
+    return cells;
+  }
+
+  function computeMove(dir) {
+    // 清除上一轮遗留的合并标记（每次移动每个方块最多只合并一次）
+    for (const row of state.grid) for (const t of row) if (t) t.merged = false;
+
+    const [dr, dc] = VECTORS[dir];
+    const res = { moved: false, gained: 0, slides: [], absorbed: [], merged: [] };
+
+    for (const [r, c] of traversalOrder(dir)) {
+      const tile = state.grid[r][c];
+      if (!tile) continue;
+
+      // 找最远可到达的空格，以及它前方的格子
+      let fr = r, fc = c;
+      let nr = r + dr, nc = c + dc;
+      while (nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE && !state.grid[nr][nc]) {
+        fr = nr; fc = nc;
+        nr += dr; nc += dc;
+      }
+      const inside = nr >= 0 && nr < SIZE && nc >= 0 && nc < SIZE;
+      const next = inside ? state.grid[nr][nc] : null;
+
+      if (next && next.value === tile.value && !next.merged) {
+        // 合并：得分 = 合并后的数值（2+2→4 得 4 分，4+4→8 得 8 分，依此类推）
+        next.value *= 2;
+        next.merged = true;
+        state.grid[r][c] = null;
+        res.gained += next.value;
+        res.absorbed.push({ el: tile.el, to: [nr, nc] });
+        res.merged.push(next);
+        res.moved = true;
+      } else if (fr !== r || fc !== c) {
+        // 滑动
+        state.grid[r][c] = null;
+        state.grid[fr][fc] = tile;
+        tile.r = fr;
+        tile.c = fc;
+        res.slides.push({ el: tile.el, to: [fr, fc] });
+        res.moved = true;
+      }
+    }
+    return res;
+  }
+
+  function tryMove(dir) {
+    if (state.over) return;
+    if (state.won && !state.keepPlaying) return;   // 胜利浮层显示中，先点击继续
+    settle(true);
+
+    const snapshot = takeSnapshot();   // 先存档，再移动
+    const res = computeMove(dir);
+    if (!res.moved) return;            // 无效移动不入栈
+
+    state.history.push(snapshot);
+
+    if (res.gained) {
+      state.score += res.gained;
+      if (state.score > best) { best = state.score; saveBest(); }
+      showScoreFly(res.gained);
+    }
+
+    // 播放滑动 / 吸收动画
+    for (const s of res.slides) setTilePos(s.el, s.to[0], s.to[1]);
+    for (const a of res.absorbed) {
+      a.el.style.zIndex = '2';         // 被吸收的方块滑到目标方块上方
+      setTilePos(a.el, a.to[0], a.to[1]);
+    }
+
+    // 生成新方块（可能是 2，也可能是 4）
+    const spawned = spawnRandomTile();
+
+    // 胜负判定
+    let overlayDelay = 0;
+    if (!state.won && maxValue() >= 2048) {
+      state.won = true;
+      state.keepPlaying = false;
+      overlayDelay = 420;
+    }
+    if (!state.over && !hasMoves()) {
+      state.over = true;
+      overlayDelay = 420;
+    }
+
+    // 等待动画结束后收尾（更新合并后的数字、移除被吸收的方块）
+    pending = {
+      timer: setTimeout(() => settle(false), SLIDE_MS),
+      absorbedEls: res.absorbed.map((a) => a.el),
+      mergedTiles: res.merged,
+      spawnedEl: spawned ? spawned.el : null,
+    };
+
+    updateUI();
+    if (overlayDelay) setTimeout(updateOverlay, overlayDelay);
+  }
+
+  /* ================= 动画收尾 ================= */
+  function settle(interrupt) {
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    for (const el of pending.absorbedEls) removeEl(el);
+    for (const tile of pending.mergedTiles) refreshTile(tile, true);
+    if (interrupt && pending.spawnedEl) pending.spawnedEl.classList.remove('tile-spawn');
+    pending = null;
+  }
+
+  /* ================= 撤销 & 新游戏 ================= */
+  function undo() {
+    if (!state.history.length) return;
+    settle(true);
+    const snap = state.history.pop();
+    clearChildren(tileLayer);
+    state.grid = snap.values.map((row, r) =>
+      row.map((v, c) => (v ? createTile(v, r, c, { restore: true }) : null))
+    );
+    state.score = snap.score;
+    state.won = snap.won;
+    state.keepPlaying = snap.keepPlaying;
+    state.over = snap.over;
+    updateUI();
+  }
+
+  function newGame() {
+    settle(true);
+    state.grid = createEmptyGrid();
+    state.score = 0;
+    state.won = false;
+    state.keepPlaying = false;
+    state.over = false;
+    state.history = [];
+    clearChildren(tileLayer);
+    spawnRandomTile();
+    spawnRandomTile();
+    updateUI();
+  }
+
+  /* ================= 判定 ================= */
+  function maxValue() {
+    let m = 0;
+    for (const row of state.grid) for (const t of row) if (t && t.value > m) m = t.value;
+    return m;
+  }
+
+  function hasMoves() {
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const t = state.grid[r][c];
+        if (!t) return true;
+        if (c + 1 < SIZE && state.grid[r][c + 1] && state.grid[r][c + 1].value === t.value) return true;
+        if (r + 1 < SIZE && state.grid[r + 1][c] && state.grid[r + 1][c].value === t.value) return true;
+      }
+    }
+    return false;
+  }
+
+  /* ================= UI ================= */
+  function updateOverlay() {
+    let show = false, msg = '', sub = '';
+    if (state.over) {
+      show = true;
+      msg = '游戏结束';
+      sub = '点击「撤销」回到上一步继续挑战，或点击「新游戏」重新开始';
+    } else if (state.won && !state.keepPlaying) {
+      show = true;
+      msg = '🎉 你赢了！';
+      sub = '点击任意处继续游戏，或使用「撤销」回到上一步';
+    }
+    if (show) {
+      overlayMsg.textContent = msg;
+      overlaySub.textContent = sub;
+    }
+    toggleClass(overlayEl, 'show', show);
+    toggleClass(overlayEl, 'clickable', state.won && !state.keepPlaying && !state.over);
+  }
+
+  function updateUI() {
+    scoreEl.textContent = state.score;
+    bestEl.textContent = best;
+    const n = state.history.length;
+    undoCountEl.textContent = n > 0 ? String(n) : '';
+    toggleClass(undoCountEl, 'has', n > 0);
+    undoBtn.disabled = n === 0;
+    updateOverlay();
+  }
+
+  function showScoreFly(gained) {
+    const span = document.createElement('span');
+    span.className = 'score-fly';
+    span.textContent = '+' + gained;
+    scoreBox.appendChild(span);
+    setTimeout(() => removeEl(span), 750);
+    scoreEl.classList.remove('bump');
+    void scoreEl.offsetWidth;
+    scoreEl.classList.add('bump');
+  }
+
+  /* ================= 字号自适应（替代容器查询，兼容旧内核） ================= */
+  function fitFonts() {
+    const w = boardEl.clientWidth;
+    if (!w) return;
+    const set = (name, v) => boardEl.style.setProperty(name, Math.round(v) + 'px');
+    set('--fs', w * 0.095);
+    set('--fs3', w * 0.074);
+    set('--fs4', w * 0.059);
+    set('--fs5', w * 0.048);
+    set('--fsMsg', Math.min(Math.max(w * 0.09, 24), 40));
+  }
+
+  /* ================= 键盘控制 ================= */
+  const KEY_DIRS = {
+    arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right',
+    w: 'up', s: 'down', a: 'left', d: 'right',
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const dir = KEY_DIRS[e.key.toLowerCase()];
+    if (!dir) return;
+    e.preventDefault();
+    tryMove(dir);
+  });
+
+  /* ================= 鼠标拖动 / 触摸滑动（Pointer 优先，旧内核回退 mouse/touch） ================= */
+  let drag = null;
+
+  function dragStart(x, y, id) {
+    drag = { x: x, y: y, id: id, done: false };
+    boardEl.classList.add('dragging');
+  }
+
+  function dragMove(x, y, id) {
+    if (!drag || drag.done || id !== drag.id) return;
+    const dx = x - drag.x;
+    const dy = y - drag.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 26) return;
+    drag.done = true;   // 一次拖动只触发一次移动
+    tryMove(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  }
+
+  function dragEnd(x, y, id) {
+    if (!drag || id !== drag.id) return;
+    const dx = x - drag.x;
+    const dy = y - drag.y;
+    const wasDone = drag.done;
+    drag = null;
+    boardEl.classList.remove('dragging');
+    if (wasDone) return;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    if (Math.max(ax, ay) >= 14) {   // 短距离快速滑动
+      tryMove(ax > ay ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    }
+  }
+
+  function dragCancel(id) {
+    if (drag && id !== undefined && id !== drag.id) return;
+    drag = null;
+    boardEl.classList.remove('dragging');
+  }
+
+  function pickTouch(list, id) {
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].identifier === id) return list[i];
+    }
+    return null;
+  }
+
+  if (window.PointerEvent) {
+    boardEl.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      dragStart(e.clientX, e.clientY, e.pointerId);
+    });
+    window.addEventListener('pointermove', (e) => dragMove(e.clientX, e.clientY, e.pointerId));
+    window.addEventListener('pointerup', (e) => dragEnd(e.clientX, e.clientY, e.pointerId));
+    window.addEventListener('pointercancel', (e) => dragCancel(e.pointerId));
+  } else {
+    // 鼠标
+    boardEl.addEventListener('mousedown', (e) => {
+      if (e.button === 0) dragStart(e.clientX, e.clientY, 'mouse');
+    });
+    window.addEventListener('mousemove', (e) => dragMove(e.clientX, e.clientY, 'mouse'));
+    window.addEventListener('mouseup', (e) => dragEnd(e.clientX, e.clientY, 'mouse'));
+    // 触摸
+    boardEl.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0];
+      if (t) dragStart(t.clientX, t.clientY, t.identifier);
+    }, { passive: true });
+    boardEl.addEventListener('touchmove', (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      const t = pickTouch(e.changedTouches, drag.id);
+      if (t) dragMove(t.clientX, t.clientY, t.identifier);
+    }, { passive: false });
+    boardEl.addEventListener('touchend', (e) => {
+      if (!drag) return;
+      const t = pickTouch(e.changedTouches, drag.id);
+      if (t) dragEnd(t.clientX, t.clientY, t.identifier);
+    });
+    boardEl.addEventListener('touchcancel', (e) => {
+      if (!drag) return;
+      const t = pickTouch(e.changedTouches, drag.id);
+      dragCancel(t ? t.identifier : undefined);
+    });
+  }
+
+  /* ================= 按钮 / 浮层 ================= */
+  overlayEl.addEventListener('click', () => {
+    if (state.won && !state.keepPlaying && !state.over) {
+      state.keepPlaying = true;
+      updateOverlay();
+    }
+  });
+
+  undoBtn.addEventListener('click', () => { undoBtn.blur(); undo(); });
+  newBtn.addEventListener('click', () => { newBtn.blur(); newGame(); });
+
+  /* ================= 启动 ================= */
+  removeEl(document.getElementById('bootHint'));   // 脚本能执行 => 移除“环境未运行脚本”提示
+  fitFonts();
+  newGame();
+  window.addEventListener('resize', fitFonts);
+  if (window.ResizeObserver) new ResizeObserver(fitFonts).observe(boardEl);
+})();
+</script>
+</body>
+</html>
