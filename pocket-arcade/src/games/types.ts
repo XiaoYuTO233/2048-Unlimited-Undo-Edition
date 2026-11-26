@@ -15,6 +15,7 @@ export interface GameModule {
   description: string
   icon: LucideIcon
   component: ComponentType<GameProps>
+  clearSavedRound?: (storage: GameStorage) => void
   hasLevels: boolean
   category: string
   artwork?: string

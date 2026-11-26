@@ -76,6 +76,7 @@ export function App() {
           returnToLobby()
         }}
         onRestart={() => {
+          if (storage) game?.clearSavedRound?.(storage)
           AudioService.play('restart')
           setRound((previous) => previous + 1)
         }}

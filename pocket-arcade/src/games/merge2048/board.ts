@@ -1,4 +1,5 @@
 import type { GameProps } from '../types'
+import type { GameStorage, JsonValue } from '../../services/storage'
 
 export const BOARD_SIZE = 4
 
@@ -7,6 +8,7 @@ const gap = 3
 const tileStep = (100 - padding * 2 + gap) / BOARD_SIZE
 const slideTime = 120
 const target = 2048
+const saveKey = 'round'
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
@@ -31,14 +33,14 @@ interface Tile {
 
 type Grid = (Tile | null)[][]
 
-interface Round {
+type Round = {
   score: number
   won: boolean
   keepPlaying: boolean
   over: boolean
 }
 
-interface Snapshot {
+type Snapshot = {
   grid: number[][]
   round: Round
 }
@@ -55,7 +57,7 @@ export interface BoardView {
 interface BoardOptions {
   board: HTMLDivElement
   tileLayer: HTMLDivElement
-  storage: GameProps['storage']
+  storage: GameStorage
   playSound: GameProps['playSound']
   onChange: (view: BoardView) => void
 }
@@ -104,7 +106,39 @@ function emptyGrid(): Grid {
   return Array.from({ length: BOARD_SIZE }, () => Array<Tile | null>(BOARD_SIZE).fill(null))
 }
 
-function readBest(storage: BoardOptions['storage']) {
+function isTileValue(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) &&
+    (value === 0 || (value >= 2 && Number.isInteger(Math.log2(value))))
+}
+
+function isSnapshot(value: JsonValue | undefined): value is Snapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const { grid, round } = value
+  if (!Array.isArray(grid) || grid.length !== BOARD_SIZE) return false
+  if (!grid.every((row): row is number[] => (
+    Array.isArray(row) && row.length === BOARD_SIZE && row.every(isTileValue)
+  ))) return false
+  if (!grid.some((row) => row.some((tile) => tile > 0))) return false
+
+  if (!round || typeof round !== 'object' || Array.isArray(round)) return false
+  return typeof round.score === 'number' && Number.isSafeInteger(round.score) && round.score >= 0 &&
+    typeof round.won === 'boolean' && typeof round.keepPlaying === 'boolean' && typeof round.over === 'boolean'
+}
+
+function readSavedRound(storage: GameStorage) {
+  const saved = storage.getSetting<JsonValue>(saveKey, null)
+  if (!saved || typeof saved !== 'object' || Array.isArray(saved) || saved.version !== 1) return
+  if (!isSnapshot(saved.current)) return
+
+  const history = Array.isArray(saved.history) && saved.history.every(isSnapshot) ? saved.history : []
+  return { current: saved.current, history }
+}
+
+export function clearSaved2048(storage: GameStorage) {
+  storage.setSetting(saveKey, null)
+}
+
+function readBest(storage: GameStorage) {
   try {
     const previousBest = Number(window.localStorage.getItem('game2048.best'))
     if (Number.isSafeInteger(previousBest) && previousBest > 0) {
@@ -178,13 +212,25 @@ function directionForDrag(dx: number, dy: number): Direction {
 export function mount2048({ board, tileLayer, storage, playSound, onChange }: BoardOptions) {
   const listeners = new AbortController()
   const options = { signal: listeners.signal }
-  const history: Snapshot[] = []
+  const saved = readSavedRound(storage)
+  const history: Snapshot[] = saved?.history ?? []
   let grid = emptyGrid()
   let round: Round = { score: 0, won: false, keepPlaying: false, over: false }
   let best = readBest(storage)
   let moves = 0
   let drag: Drag | null = null
   let pending: PendingAnimation | undefined
+
+  function snapshot(): Snapshot {
+    return {
+      grid: grid.map((row) => row.map((tile) => tile?.value ?? 0)),
+      round: { ...round },
+    }
+  }
+
+  function saveRound() {
+    storage.setSetting(saveKey, { version: 1, current: snapshot(), history })
+  }
 
   function publish(gained = 0) {
     onChange({
@@ -206,6 +252,14 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
     Object.assign(element.style, tilePosition(row, column))
     tileLayer.append(element)
     return tile
+  }
+
+  function restoreRound(savedRound: Snapshot) {
+    tileLayer.replaceChildren()
+    grid = savedRound.grid.map((row, r) => (
+      row.map((value, c) => value ? createTile(value, r, c, 'restore') : null)
+    ))
+    round = { ...savedRound.round }
   }
 
   function spawnTile() {
@@ -238,10 +292,7 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
     if (!playable()) return
 
     settle(true)
-    const previous: Snapshot = {
-      grid: grid.map((row) => row.map((tile) => tile?.value ?? 0)),
-      round: { ...round },
-    }
+    const previous = snapshot()
     const { slides, absorbed, merged, gained } = resolveMove(grid, direction)
     if (!slides.length && !absorbed.length) return
 
@@ -261,6 +312,7 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
     const spawned = spawnTile()
     if (!round.won && [...merged].some((tile) => tile.value >= target)) round.won = true
     round.over = !hasMoves(grid)
+    saveRound()
     pending = {
       timer: window.setTimeout(() => settle(false), slideTime),
       absorbed,
@@ -272,13 +324,12 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
   }
 
   function undo() {
-    const snapshot = history.pop()
-    if (!snapshot) return
+    const previous = history.pop()
+    if (!previous) return
 
     settle(true)
-    tileLayer.replaceChildren()
-    grid = snapshot.grid.map((row, r) => row.map((value, c) => value ? createTile(value, r, c, 'restore') : null))
-    round = snapshot.round
+    restoreRound(previous)
+    saveRound()
     publish()
     playSound('click')
   }
@@ -286,6 +337,7 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
   function continueGame() {
     if (!round.won || round.keepPlaying || round.over) return
     round.keepPlaying = true
+    saveRound()
     publish()
     playSound('click')
   }
@@ -332,8 +384,13 @@ export function mount2048({ board, tileLayer, storage, playSound, onChange }: Bo
     if (drag?.id === event.pointerId) drag = null
   }, options)
 
-  spawnTile()
-  spawnTile()
+  if (saved) {
+    restoreRound(saved.current)
+  } else {
+    spawnTile()
+    spawnTile()
+    saveRound()
+  }
   publish()
 
   return {
