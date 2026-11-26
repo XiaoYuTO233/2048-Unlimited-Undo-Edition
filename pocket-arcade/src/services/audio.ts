@@ -1,5 +1,6 @@
 const patterns = {
   click: [530],
+  merge: [440, 660],
   enter: [350, 525, 700],
   restart: [550, 415, 550],
 } as const

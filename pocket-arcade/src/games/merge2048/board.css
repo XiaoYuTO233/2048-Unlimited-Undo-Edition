@@ -1,0 +1,181 @@
+.merge-game {
+  max-width: 29rem;
+}
+
+.merge-game-score {
+  position: relative;
+}
+
+.merge-game-score .merge-score-gain {
+  position: absolute;
+  z-index: 1;
+  top: 0.45rem;
+  right: 0.75rem;
+  color: var(--accent);
+  font-weight: 800;
+  pointer-events: none;
+  animation: merge-score-rise 640ms ease-out both;
+}
+
+.merge-board {
+  position: relative;
+  isolation: isolate;
+  container-type: inline-size;
+  aspect-ratio: 1;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  border: 1px solid #5d4058;
+  border-radius: 1rem;
+  background: #332237;
+  box-shadow: inset 0 1px 0 #ffffff12;
+}
+
+.merge-board:active {
+  cursor: grabbing;
+}
+
+.merge-cell,
+.merge-tile {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: clamp(0.45rem, 2cqw, 0.75rem);
+}
+
+.merge-cell {
+  background: #49334b;
+  box-shadow: inset 0 1px 2px #150f1c45;
+}
+
+:root[data-theme="light"] .merge-board {
+  border-color: #c2a9c5;
+  background: #d7c2d9;
+  box-shadow: inset 0 1px 0 #ffffff4d;
+}
+
+:root[data-theme="light"] .merge-cell {
+  background: #baa0c0;
+  box-shadow: inset 0 1px 2px #48314b26;
+}
+
+.merge-tiles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.merge-tile {
+  color: #3b1e36;
+  background: #f5e0cd;
+  box-shadow: inset 0 1px 0 #ffffff5c, 0 2px 0 #2112214d;
+  font-size: clamp(1.4rem, 8vw, 3rem);
+  font-size: clamp(1.4rem, 10cqw, 3rem);
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  transition: top 120ms ease-out, left 120ms ease-out;
+}
+
+.merge-tile[data-digits="3"] { font-size: 8cqw; }
+.merge-tile[data-digits="4"] { font-size: 6.5cqw; }
+.merge-tile[data-digits="5"] { font-size: 5.2cqw; }
+
+.merge-tile[data-value="4"] { background: #ffcc91; }
+.merge-tile[data-value="8"] { background: #f6a667; }
+.merge-tile[data-value="16"] { background: #fa936f; }
+.merge-tile[data-value="32"] { background: #f67d82; }
+.merge-tile[data-value="64"] { background: #a63250; color: #fff8fb; }
+.merge-tile[data-value="128"] { background: #f9dc7a; }
+.merge-tile[data-value="256"] { background: #f4d064; }
+.merge-tile[data-value="512"] { background: #efbd59; }
+.merge-tile[data-value="1024"] { background: #eeb348; }
+.merge-tile[data-value="2048"] { background: #ffda54; box-shadow: 0 0 12px #ffd65b85; }
+.merge-tile[data-value="super"] { background: #6c3f8a; color: #fff8ff; }
+
+.merge-tile[data-animation="spawn"] { animation: merge-tile-appear 160ms ease-out 105ms both; }
+.merge-tile[data-animation="restore"] { animation: merge-tile-appear 140ms ease-out both; }
+.merge-tile[data-animation="merge"] { animation: merge-tile-pop 180ms ease-out; }
+
+@keyframes merge-tile-appear {
+  from { opacity: 0; transform: scale(0.65); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes merge-tile-pop {
+  50% { transform: scale(1.15); }
+}
+
+@keyframes merge-score-rise {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-1.75rem); }
+}
+
+.merge-result {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 1rem;
+  color: #fff6ff;
+  background: #271831e8;
+  text-align: center;
+}
+
+.merge-result:focus-visible {
+  outline-offset: -4px;
+}
+
+.merge-result strong {
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+}
+
+.merge-result span {
+  color: #e9d5ed;
+  font-size: 0.8rem;
+}
+
+.merge-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.merge-controls p {
+  color: var(--subtle);
+  font-size: 0.8rem;
+}
+
+.merge-undo.preview-button {
+  margin-top: 0;
+}
+
+.merge-undo-count {
+  min-width: 1.5rem;
+  padding: 0.06rem 0.28rem;
+  border-radius: 0.32rem;
+  background: var(--raised);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.merge-undo:disabled {
+  opacity: 0.58;
+  cursor: default;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merge-game .merge-tile {
+    animation: none;
+  }
+
+  .merge-game-score .merge-score-gain {
+    display: none;
+  }
+}
