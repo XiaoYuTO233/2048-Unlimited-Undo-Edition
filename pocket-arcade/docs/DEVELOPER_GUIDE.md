@@ -330,6 +330,19 @@ npm run verify:sudoku
 
 `drawSnake()` 根据画布显示宽度和设备像素比绘制网格、蛇身及食物。盘面变化、容器尺寸变化和主题切换都会重绘。游戏使用单个 Canvas 绘制棋盘。 [绘制](../src/games/snake/canvas.ts)
 
+### 移速和计时
+
+`moveInterval(score)` 根据已吃食物数计算下一步的等待毫秒数。`schedule()` 每移动一步后读取新的分数，并用这个间隔设置下一次计时器，所以吃到食物后从下一步开始加速。 [速度计算](../src/games/snake/engine.ts) · [计时器](../src/games/snake/controller.ts)
+
+| 变量 | 用途 |
+| --- | --- |
+| `previousStartInterval`、`previousStartSpeed` | 初版的开局间隔为 210 毫秒，基准速度为 `1000 / 210` 格每秒。 |
+| `previousSpeed` | 初版在当前分数下的速度，按照 `1000 / Math.max(80, 210 - score * 8)` 换算为格每秒。 |
+| `startSpeed` | 当前开局速度，取初版基准速度的一半。 |
+| `foodSpeed` | 当前由食物累计增加的速度，取初版当前速度与初版开局速度之差的三分之二。 |
+
+当前速度为 `startSpeed + foodSpeed`，每格间隔为 `1000 / (startSpeed + foodSpeed)`。开局为 420 毫秒，吃到第一个食物后约为 398.93 毫秒。从第 17 个食物起，每格间隔稳定在约 132.63 毫秒，约每秒 7.54 格。经典和穿墙模式共用这一速度曲线。
+
 ## Android 打包和离线验证
 
 本地打包使用 JDK 21、Android SDK Platform 35 和项目的 Gradle Wrapper。在 Android Studio 配置 SDK，或将 `ANDROID_HOME` 指向 SDK 目录。从 `pocket-arcade/` 执行以下命令。
