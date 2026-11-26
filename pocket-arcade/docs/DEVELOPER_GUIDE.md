@@ -33,8 +33,11 @@ npm run dev
     │   │   ├── registry.ts         游戏注册表
     │   │   ├── Merge2048.tsx       2048 界面与控制器挂载
     │   │   ├── merge2048/          2048 棋盘逻辑、存档和专用样式
+    │   │   ├── Sudoku.tsx          数独选关页与游戏入口
+    │   │   ├── sudoku/             数独棋盘、输入、计时和通关记录
     │   │   ├── Snake.tsx 等        其他游戏的独立入口
     │   │   └── PlaceholderGame.tsx 共用预览页，供未完成的游戏使用
+    │   ├── data/sudokuLevels.ts    数独关卡题库
     │   ├── services/
     │   │   ├── navigation.ts       哈希路由和返回大厅
     │   │   ├── storage.ts          按游戏隔离的本地存储
@@ -42,6 +45,7 @@ npm run dev
     │   └── assets/                 随应用打包的插图
     ├── public/licenses/            随应用分发的第三方许可
     ├── docs/                       开发者文档
+    ├── scripts/verify-sudoku.mjs   数独题库校验
     ├── vite.config.ts              前端构建、相对路径和离线策略
     ├── capacitor.config.ts         Android WebView 打包配置
     ├── android/                    原生外壳、Gradle、清单和图标
@@ -222,7 +226,8 @@ export const gameRegistry: readonly GameModule[] = [
 | 主题、间距和响应式布局 | [styles.css](../src/styles.css) |
 | 音效音高和节奏 | `patterns` 和 `playNotes()` · [audio.ts](../src/services/audio.ts) |
 | 最高分、关卡进度和通用存储格式 | [storage.ts](../src/services/storage.ts) |
-| 贪吃蛇、俄罗斯方块和数独 | [Snake.tsx](../src/games/Snake.tsx) · [FallingBlocks.tsx](../src/games/FallingBlocks.tsx) · [Sudoku.tsx](../src/games/Sudoku.tsx) |
+| 贪吃蛇和俄罗斯方块 | [Snake.tsx](../src/games/Snake.tsx) · [FallingBlocks.tsx](../src/games/FallingBlocks.tsx) |
+| 数独选关、填格和计时 | [Sudoku.tsx](../src/games/Sudoku.tsx) · [PlaySudoku.tsx](../src/games/sudoku/PlaySudoku.tsx) · [progress.ts](../src/games/sudoku/progress.ts) |
 
 ### 2048 的状态和输入
 
@@ -260,6 +265,42 @@ export const gameRegistry: readonly GameModule[] = [
 | `readBest()` | 读取最高分。独立版旧键 `game2048.best` 在同源可读时会并入新纪录。 |
 
 修改规则或存档结构时，检查达成目标后继续、结束后撤销、动画中返回、退出后重新打开，以及手动重开保留最高分。这些流程共用同一组快照和状态字段。
+
+## 新增数独关卡
+
+追加第 6 关或第 7 关时，把对象加入 `sudokuLevels` 数组末尾。选关页按数组顺序显示，前一关通关后解锁下一项，结算页的「下一关」也沿用这个顺序。已有 `levelId` 对应玩家的通关和最佳用时，发布后请保持它与题目对应。 [题库](../src/data/sudokuLevels.ts)
+
+| 字段 | 填写要求 |
+| --- | --- |
+| `levelId` | 整数 ID，从现有最后一关依次递增，例如 `6`、`7`。 |
+| `title` | 显示在关卡卡片和游玩页面上的名称。 |
+| `difficulty` | `1` 到 `5` 的整数星级。 |
+| `puzzle` | 从左到右、从上到下排列的 81 位数字字符串，`0` 表示空格。 |
+| `solution` | 同顺序的 81 位完整答案，每个位置只允许 `1` 到 `9`。 |
+
+下面是第 6 关的对象格式。将两个占位字符串换成本关的实际数字，再把对象追加到数组。
+
+```json
+{
+  "levelId": 6,
+  "title": "新关卡名称",
+  "difficulty": 3,
+  "puzzle": "此处填写 81 位题面数字",
+  "solution": "此处填写 81 位答案数字"
+}
+```
+
+在 `pocket-arcade/` 运行题库校验。
+
+```sh
+npm run verify:sudoku
+```
+
+校验脚本独立计算解数，再从题面用逻辑技巧逐步推出答案。它会检查题面、答案、ID 和星级，要求唯一解与录入答案相同。当前星级的逻辑技巧上限依次为显性唯一、隐性唯一、区块排除、显性数对和 X-Wing。 [校验脚本](../scripts/verify-sudoku.mjs)
+
+首次出题参考了 Norvig 公开题库的校验方法和 HoDoKu 的技巧分级。安装包使用随源码提供的原创题库。 [Norvig 数独题库与求解方法](https://www.norvig.com/sudoku.html) · [HoDoKu 推理技巧](https://hodoku.sourceforge.net/en/techniques.php)
+
+游玩时，`givens` 是题目给定值，`values` 是当前棋盘，`notes` 是每格的候选位掩码，`selected` 是选中格的下标。`correctCounts` 按答案统计每个数字正确就位的次数。完成后用 `storage.completeLevel(levelId)` 记录进度，用 `best-time:<levelId>` 记录耗时最短的毫秒值。 [游玩组件](../src/games/sudoku/PlaySudoku.tsx) · [关卡记录](../src/games/sudoku/progress.ts)
 
 ## Android 打包和离线验证
 
