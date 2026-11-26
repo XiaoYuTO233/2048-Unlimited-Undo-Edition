@@ -16,6 +16,7 @@
   --raised: #2a2035;
   --focus: #eda3f6;
   --shell-width: 70rem;
+  --header-height: 4.625rem;
 }
 
 :root[data-theme="light"] {
@@ -92,7 +93,7 @@ img {
 
 .header-inner {
   justify-content: space-between;
-  min-height: 4.625rem;
+  min-height: var(--header-height);
   gap: 0.5rem;
 }
 
@@ -599,8 +600,8 @@ img {
 }
 
 @media (max-width: 47rem) {
-  .header-inner {
-    min-height: 4.35rem;
+  :root {
+    --header-height: 4.35rem;
   }
 
   .hero {

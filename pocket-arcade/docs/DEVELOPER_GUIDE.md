@@ -35,6 +35,8 @@ npm run dev
     │   │   ├── merge2048/          2048 棋盘逻辑、存档和专用样式
     │   │   ├── Sudoku.tsx          数独选关页与游戏入口
     │   │   ├── sudoku/             数独棋盘、输入、计时和通关记录
+    │   │   ├── FallingBlocks.tsx   俄罗斯方块棋盘、计分栏和触控界面
+    │   │   ├── blocks/             俄罗斯方块规则、计时和自动存档
     │   │   ├── Snake.tsx 等        其他游戏的独立入口
     │   │   └── PlaceholderGame.tsx 共用预览页，供未完成的游戏使用
     │   ├── data/sudokuLevels.ts    数独关卡题库
@@ -105,7 +107,7 @@ npm run dev
 | `--page`、`--header`、`--surface`、`--raised` | 页面、顶部导航、卡片和凸起交互区域的背景色。 |
 | `--ink`、`--subtle`、`--quiet` | 主文字、辅助文字和低强调标签颜色。 |
 | `--line`、`--accent`、`--accent-surface`、`--focus` | 分隔边线、强调色、强调面和键盘焦点颜色。 |
-| `--shell-width` | 大厅和导航共用的内容最大宽度。 |
+| `--shell-width`、`--header-height` | 大厅与导航的内容最大宽度，以及顶部导航的最小高度。俄罗斯方块用导航高度计算底部触控区位置。 |
 | `--card-ink`、`--card-light-ink` | 游戏卡片的强调色及浅色主题下的分类文字颜色。 |
 | `--card-deep`、`--card-glow`、`--dot` | 游戏插图区的底色、渐变颜色和点阵颜色，由 `data-color` 决定。 |
 | `patterns`、`SoundEffect` | 音效名到频率序列的映射及其键名类型。现有音效为 `click`、`merge`、`enter`、`restart`。 |
@@ -226,7 +228,8 @@ export const gameRegistry: readonly GameModule[] = [
 | 主题、间距和响应式布局 | [styles.css](../src/styles.css) |
 | 音效音高和节奏 | `patterns` 和 `playNotes()` · [audio.ts](../src/services/audio.ts) |
 | 最高分、关卡进度和通用存储格式 | [storage.ts](../src/services/storage.ts) |
-| 贪吃蛇和俄罗斯方块 | [Snake.tsx](../src/games/Snake.tsx) · [FallingBlocks.tsx](../src/games/FallingBlocks.tsx) |
+| 贪吃蛇 | [Snake.tsx](../src/games/Snake.tsx) |
+| 俄罗斯方块棋盘、按钮和样式 | [FallingBlocks.tsx](../src/games/FallingBlocks.tsx) · [blocks.css](../src/games/blocks/blocks.css) |
 | 数独选关、填格和计时 | [Sudoku.tsx](../src/games/Sudoku.tsx) · [PlaySudoku.tsx](../src/games/sudoku/PlaySudoku.tsx) · [progress.ts](../src/games/sudoku/progress.ts) |
 
 ### 2048 的状态和输入
@@ -301,6 +304,20 @@ npm run verify:sudoku
 首次出题参考了 Norvig 公开题库的校验方法和 HoDoKu 的技巧分级。安装包使用随源码提供的原创题库。 [Norvig 数独题库与求解方法](https://www.norvig.com/sudoku.html) · [HoDoKu 推理技巧](https://hodoku.sourceforge.net/en/techniques.php)
 
 游玩时，`givens` 是题目给定值，`values` 是当前棋盘，`notes` 是每格的候选位掩码，`selected` 是选中格的下标。`correctCounts` 按答案统计每个数字正确就位的次数。完成后用 `storage.completeLevel(levelId)` 记录进度，用 `best-time:<levelId>` 记录耗时最短的毫秒值。 [游玩组件](../src/games/sudoku/PlaySudoku.tsx) · [关卡记录](../src/games/sudoku/progress.ts)
+
+## 俄罗斯方块规则和存档
+
+棋盘显示 20 行、10 列，`hiddenRows` 在顶端提供两行旋转空间。`board` 存已锁定的方块，`active` 记录当前方块的种类、朝向和坐标，`queue` 是七袋随机生成的待出块序列。`landingPiece()` 同时用于计算幽灵投影和硬降终点。 [棋盘规则](../src/games/blocks/engine.ts)
+
+| 变量或函数 | 用途 |
+| --- | --- |
+| `standardKicks`、`longKicks` | SRS 旋转偏移表，其中 `longKicks` 用于 I 块，O 块旋转时占格保持原样。 |
+| `lineScores`、`blockLevel()` | 一到四行的固定得分和每十行升一级的规则。 |
+| `gravityInterval()`、`fallElapsed` | 普通下落间隔与距离下一次下落的已用毫秒数。 |
+| `lockDelay`、`lockElapsed`、`lockResets` | 触底后的 500 毫秒锁定窗口、已用时间和触底调整次数。每块最多因调整重置 15 次。 |
+| `held`、`repeatDelay`、`repeatInterval` | 用指针 ID 跟踪长按。左右连续移动的初始延迟为 145 毫秒，重复间隔为 50 毫秒。 |
+
+控制器处理帧更新、按键和后台暂停，把有盘面变化的状态保存到 `blocks` 游戏的 `round` 设置，并在恢复旧局时等待玩家点击「继续游戏」。手动重开通过 `clearSavedBlocks()` 清理本局状态。改动保存结构时更新格式校验并处理旧局兼容性。 [控制器](../src/games/blocks/controller.ts) · [存档](../src/games/blocks/storage.ts)
 
 ## Android 打包和离线验证
 
