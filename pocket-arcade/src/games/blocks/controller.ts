@@ -26,6 +26,10 @@ function isHeldAction(action: BlocksAction): action is HeldAction {
   return action === 'left' || action === 'right' || action === 'soft-drop'
 }
 
+function stepBlock(round: BlocksRound, action: HeldAction) {
+  return action === 'soft-drop' ? softDrop(round) : moveBlock(round, action === 'left' ? -1 : 1)
+}
+
 export function mountBlocks({ initial, storage, playSound, onChange }: {
   initial: BlocksView
   storage: GameProps['storage']
@@ -63,6 +67,18 @@ export function mountBlocks({ initial, storage, playSound, onChange }: {
     else if (sound || round.over) playSound('click')
   }
 
+  function moveBy(action: HeldAction, steps: number) {
+    if (paused || round.over) return
+
+    let updated = round
+    for (let index = 0; index < steps; index += 1) {
+      const next = stepBlock(updated, action)
+      if (next === updated) break
+      updated = next
+    }
+    commit(updated)
+  }
+
   function tick(now: number) {
     frameId = undefined
     if (paused || round.over) return
@@ -77,7 +93,7 @@ export function mountBlocks({ initial, storage, playSound, onChange }: {
       else horizontal = input
     }
     if (horizontal && now >= horizontal.nextRepeat) {
-      commit(moveBlock(round, horizontal.action === 'left' ? -1 : 1))
+      moveBy(horizontal.action, 1)
       horizontal.nextRepeat = now + repeatInterval
     }
 
@@ -119,21 +135,17 @@ export function mountBlocks({ initial, storage, playSound, onChange }: {
   return {
     pause,
     resume,
+    moveBy,
     press(action: BlocksAction, pointerId?: number) {
       if (paused || round.over) return
-      if (pointerId !== undefined && isHeldAction(action)) {
-        held.set(pointerId, { action, nextRepeat: performance.now() + repeatDelay })
+      if (isHeldAction(action)) {
+        if (pointerId !== undefined) {
+          held.set(pointerId, { action, nextRepeat: performance.now() + repeatDelay })
+        }
+        moveBy(action, 1)
+        return
       }
       switch (action) {
-        case 'left':
-          commit(moveBlock(round, -1))
-          break
-        case 'right':
-          commit(moveBlock(round, 1))
-          break
-        case 'soft-drop':
-          commit(softDrop(round))
-          break
         case 'hard-drop':
           commit(hardDrop(round), true)
           break

@@ -319,6 +319,8 @@ npm run verify:sudoku
 
 控制器处理帧更新、按键和后台暂停，把有盘面变化的状态保存到 `blocks` 游戏的 `round` 设置，并在恢复旧局时等待玩家点击「继续游戏」。手动重开通过 `clearSavedBlocks()` 清理本局状态。改动保存结构时更新格式校验并处理旧局兼容性。 [控制器](../src/games/blocks/controller.ts) · [存档](../src/games/blocks/storage.ts)
 
+棋盘的滑动输入在 `FallingBlocks.tsx` 处理。`swipe` 保存指针、起点与锁定的方向，`swipeSteps()` 用棋盘格宽把位移换成步数。横向和向下滑动通过 `moveBy()` 应用移动，达标的向上滑动在松手时调用硬降。暂停、指针取消或当前方块锁定后，已有手势随即清除。 [触控界面](../src/games/FallingBlocks.tsx)
+
 ## Android 打包和离线验证
 
 本地打包使用 JDK 21、Android SDK Platform 35 和项目的 Gradle Wrapper。在 Android Studio 配置 SDK，或将 `ANDROID_HOME` 指向 SDK 目录。从 `pocket-arcade/` 执行以下命令。

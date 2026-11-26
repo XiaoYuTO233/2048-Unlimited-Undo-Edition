@@ -2,6 +2,7 @@ import {
   ArrowDown, ArrowLeft, ArrowRight, ArrowDownToLine, Pause, Play, RotateCcw, RotateCw,
 } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
+import type { PointerEvent } from 'react'
 import { mountBlocks } from './blocks/controller'
 import type { BlocksAction, BlocksView } from './blocks/controller'
 import { blockLevel, columns, hiddenRows, landingPiece, newBlocksRound, pieceCells, shapeCells } from './blocks/engine'
@@ -21,6 +22,21 @@ const placementControls = [
   { action: 'clockwise', label: '顺时针', icon: RotateCw, hold: false },
   { action: 'hard-drop', label: '硬降', icon: ArrowDownToLine, hold: false },
 ] as const
+
+type BlocksSwipe = {
+  pointerId: number
+  startX: number
+  startY: number
+  cellWidth: number
+  board: BlocksView['round']['board']
+  axis: 'horizontal' | 'down' | 'up' | null
+  steps: number
+}
+
+function swipeSteps(distance: number, cellWidth: number) {
+  const pastThreshold = Math.abs(distance) - cellWidth * 0.65
+  return pastThreshold < 0 ? 0 : Math.sign(distance) * (1 + Math.floor(pastThreshold / cellWidth))
+}
 
 function occupiedCells(piece: Piece) {
   return new Set(pieceCells(piece).map(([x, y]) => y * columns + x))
@@ -59,12 +75,23 @@ export function FallingBlocks({ game, storage, playSound }: GameProps) {
   })
   const [view, setView] = useState(initial)
   const controller = useRef<ReturnType<typeof mountBlocks>>(null)
+  const swipe = useRef<BlocksSwipe | null>(null)
   const { round, paused, best } = view
   const { board, active, score, lines, over, queue } = round
   const Icon = game.icon
 
   useLayoutEffect(() => {
-    const gameController = mountBlocks({ initial, storage, playSound, onChange: setView })
+    const gameController = mountBlocks({
+      initial,
+      storage,
+      playSound,
+      onChange: (next) => {
+        if (swipe.current && (next.paused || swipe.current.board !== next.round.board)) {
+          swipe.current = null
+        }
+        setView(next)
+      },
+    })
     controller.current = gameController
     return () => {
       gameController.dispose()
@@ -79,16 +106,87 @@ export function FallingBlocks({ game, storage, playSound }: GameProps) {
     controller.current?.press(action, pointerId)
   }
 
+  function startSwipe(event: PointerEvent<HTMLDivElement>) {
+    if (paused || over || swipe.current || event.button !== 0) return
+    const surface = event.currentTarget
+    swipe.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      cellWidth: Math.max(14, surface.clientWidth / columns),
+      board,
+      axis: null,
+      steps: 0,
+    }
+    surface.setPointerCapture(event.pointerId)
+  }
+
+  function moveSwipe(event: PointerEvent<HTMLDivElement>) {
+    const current = swipe.current
+    if (!current || current.pointerId !== event.pointerId) return
+
+    const dx = event.clientX - current.startX
+    const dy = event.clientY - current.startY
+    if (!current.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < current.cellWidth * 0.65) return
+      current.axis = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : dy > 0 ? 'down' : 'up'
+    }
+
+    if (current.axis === 'horizontal') {
+      const steps = swipeSteps(dx, current.cellWidth)
+      const added = steps - current.steps
+      current.steps = steps
+      if (added) controller.current?.moveBy(added < 0 ? 'left' : 'right', Math.abs(added))
+    } else if (current.axis === 'down') {
+      const steps = swipeSteps(Math.max(0, dy), current.cellWidth)
+      if (steps > current.steps) {
+        controller.current?.moveBy('soft-drop', steps - current.steps)
+        current.steps = steps
+      }
+    }
+  }
+
+  function endSwipe(event: PointerEvent<HTMLDivElement>) {
+    const current = swipe.current
+    if (!current || current.pointerId !== event.pointerId) return
+
+    moveSwipe(event)
+    swipe.current = null
+    const upwards = current.startY - event.clientY
+    const horizontal = Math.abs(event.clientX - current.startX)
+    if (current.axis === 'up' && upwards >= Math.max(44, 2 * current.cellWidth, 1.5 * horizontal)) {
+      press('hard-drop')
+    }
+  }
+
+  function cancelSwipe(event: PointerEvent<HTMLDivElement>) {
+    if (swipe.current?.pointerId === event.pointerId) swipe.current = null
+  }
+
   return (
     <section className="game-layout blocks-game" data-color={game.color} aria-labelledby="blocks-title">
       <div className="game-heading blocks-heading">
         <div className="game-heading-icon"><Icon size={22} aria-hidden /></div>
-        <h1 id="blocks-title">{game.title}</h1>
+        <div>
+          <h1 id="blocks-title">{game.title}</h1>
+          <p className="blocks-swipe-help" id="blocks-swipe-help">滑动棋盘可移动方块，下滑软降，上滑硬降。</p>
+        </div>
       </div>
 
       <div className="blocks-layout">
         <div className="blocks-playfield">
-          <div className="blocks-board" role="img" aria-label="10 列 20 行游戏棋盘">
+          <div
+            className="blocks-board"
+            role="img"
+            aria-label="10 列 20 行游戏棋盘"
+            aria-describedby="blocks-swipe-help"
+            data-swipe={!paused && !over}
+            onPointerDown={startSwipe}
+            onPointerMove={moveSwipe}
+            onPointerUp={endSwipe}
+            onPointerCancel={cancelSwipe}
+            onLostPointerCapture={cancelSwipe}
+          >
             {board.slice(hiddenRows).flatMap((row, index) => row.map((cell, column) => {
               const id = (hiddenRows + index) * columns + column
               const state = moving.has(id) ? 'active' : cell ? 'settled' : ghost.has(id) ? 'ghost' : undefined

@@ -22,6 +22,11 @@
   font-size: 1.52rem;
 }
 
+.blocks-swipe-help {
+  color: var(--subtle);
+  font-size: 0.67rem;
+}
+
 .blocks-heading .game-heading-icon {
   width: 2.45rem;
   height: 2.45rem;
@@ -48,6 +53,10 @@
   background: var(--blocks-gridline);
   border: 2px solid var(--blocks-gridline);
   border-radius: 0.5rem;
+}
+
+.blocks-board[data-swipe="true"] {
+  touch-action: none;
 }
 
 .blocks-cell {
