@@ -48,7 +48,12 @@ export function newSnakeRound(mode: SnakeMode): SnakeRound {
 }
 
 export function moveInterval(score: number) {
-  return Math.max(80, 210 - score * 8)
+  const previousStartInterval = 210
+  const previousStartSpeed = 1000 / previousStartInterval
+  const previousSpeed = 1000 / Math.max(80, previousStartInterval - score * 8)
+  const startSpeed = previousStartSpeed / 2
+  const foodSpeed = (previousSpeed - previousStartSpeed) * (2 / 3)
+  return 1000 / (startSpeed + foodSpeed)
 }
 
 export function canTurn(from: Direction, to: Direction) {
