@@ -147,16 +147,8 @@ export function FallingBlocks({ game, storage, playSound }: GameProps) {
   }
 
   function endSwipe(event: PointerEvent<HTMLDivElement>) {
-    const current = swipe.current
-    if (!current || current.pointerId !== event.pointerId) return
-
     moveSwipe(event)
-    swipe.current = null
-    const upwards = current.startY - event.clientY
-    const horizontal = Math.abs(event.clientX - current.startX)
-    if (current.axis === 'up' && upwards >= Math.max(44, 2 * current.cellWidth, 1.5 * horizontal)) {
-      press('hard-drop')
-    }
+    cancelSwipe(event)
   }
 
   function cancelSwipe(event: PointerEvent<HTMLDivElement>) {
@@ -169,7 +161,7 @@ export function FallingBlocks({ game, storage, playSound }: GameProps) {
         <div className="game-heading-icon"><Icon size={22} aria-hidden /></div>
         <div>
           <h1 id="blocks-title">{game.title}</h1>
-          <p className="blocks-swipe-help" id="blocks-swipe-help">滑动棋盘可移动方块，下滑软降，上滑硬降。</p>
+          <p className="blocks-swipe-help" id="blocks-swipe-help">横滑移位，下滑软降。</p>
         </div>
       </div>
 

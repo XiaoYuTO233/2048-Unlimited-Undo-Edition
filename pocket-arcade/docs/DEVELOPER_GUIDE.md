@@ -37,7 +37,8 @@ npm run dev
     │   │   ├── sudoku/             数独棋盘、输入、计时和通关记录
     │   │   ├── FallingBlocks.tsx   俄罗斯方块棋盘、计分栏和触控界面
     │   │   ├── blocks/             俄罗斯方块规则、计时和自动存档
-    │   │   ├── Snake.tsx 等        其他游戏的独立入口
+    │   │   ├── Snake.tsx           贪吃蛇的 Canvas 棋盘、模式与触控界面
+    │   │   ├── snake/              贪吃蛇规则、计时、绘制和专用样式
     │   │   └── PlaceholderGame.tsx 共用预览页，供未完成的游戏使用
     │   ├── data/sudokuLevels.ts    数独关卡题库
     │   ├── services/
@@ -228,7 +229,7 @@ export const gameRegistry: readonly GameModule[] = [
 | 主题、间距和响应式布局 | [styles.css](../src/styles.css) |
 | 音效音高和节奏 | `patterns` 和 `playNotes()` · [audio.ts](../src/services/audio.ts) |
 | 最高分、关卡进度和通用存储格式 | [storage.ts](../src/services/storage.ts) |
-| 贪吃蛇 | [Snake.tsx](../src/games/Snake.tsx) |
+| 贪吃蛇方向输入、规则和绘制 | [Snake.tsx](../src/games/Snake.tsx) · [engine.ts](../src/games/snake/engine.ts) · [canvas.ts](../src/games/snake/canvas.ts) |
 | 俄罗斯方块棋盘、按钮和样式 | [FallingBlocks.tsx](../src/games/FallingBlocks.tsx) · [blocks.css](../src/games/blocks/blocks.css) |
 | 数独选关、填格和计时 | [Sudoku.tsx](../src/games/Sudoku.tsx) · [PlaySudoku.tsx](../src/games/sudoku/PlaySudoku.tsx) · [progress.ts](../src/games/sudoku/progress.ts) |
 
@@ -319,7 +320,15 @@ npm run verify:sudoku
 
 控制器处理帧更新、按键和后台暂停，把有盘面变化的状态保存到 `blocks` 游戏的 `round` 设置，并在恢复旧局时等待玩家点击「继续游戏」。手动重开通过 `clearSavedBlocks()` 清理本局状态。改动保存结构时更新格式校验并处理旧局兼容性。 [控制器](../src/games/blocks/controller.ts) · [存档](../src/games/blocks/storage.ts)
 
-棋盘的滑动输入在 `FallingBlocks.tsx` 处理。`swipe` 保存指针、起点与锁定的方向，`swipeSteps()` 用棋盘格宽把位移换成步数。横向和向下滑动通过 `moveBy()` 应用移动，达标的向上滑动在松手时调用硬降。暂停、指针取消或当前方块锁定后，已有手势随即清除。 [触控界面](../src/games/FallingBlocks.tsx)
+棋盘的滑动输入在 `FallingBlocks.tsx` 处理。`swipe` 保存指针、起点与锁定的方向，`swipeSteps()` 用棋盘格宽把位移换成步数。横向和向下滑动通过 `moveBy()` 应用移动。硬降由底部按键触发。暂停、指针取消或当前方块锁定后，已有手势随即清除。 [触控界面](../src/games/FallingBlocks.tsx)
+
+## 贪吃蛇规则和输入
+
+`gridSize` 决定 Canvas 正方形网格大小，`body[0]` 是蛇头。`advanceSnake()` 按方向推进一格。在经典模式中越界结束，在穿墙模式中越界时坐标循环到对侧。食物从空格中选取，吃到食物后 `score` 加一，并用 `moveInterval()` 缩短下一步等待时间。 [规则](../src/games/snake/engine.ts)
+
+`turns` 最多缓存两个转向。十字键和画布滑动都调用 `turn()`，由 `canTurn()` 拦截反向输入。每次移动只消耗一个排队方向。暂停时清除计时器和输入队列，继续时基于当前盘面重新计时。模式使用 `snake` 的 `mode` 设置，最高分通过 `GameStorage` 保存。 [控制器](../src/games/snake/controller.ts)
+
+`drawSnake()` 根据画布显示宽度和设备像素比绘制网格、蛇身及食物。盘面变化、容器尺寸变化和主题切换都会重绘。游戏使用单个 Canvas 绘制棋盘。 [绘制](../src/games/snake/canvas.ts)
 
 ## Android 打包和离线验证
 
