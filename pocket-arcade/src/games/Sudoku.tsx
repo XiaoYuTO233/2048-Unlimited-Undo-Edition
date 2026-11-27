@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { sudokuLevels } from '../data/sudokuLevels'
 import { openSudokuTechniques } from '../services/navigation'
 import { PlaySudoku } from './sudoku/PlaySudoku'
-import { formatSudokuTime, getBestTime } from './sudoku/progress'
+import { formatSudokuTime, getBestTime, getUnlockedBeforeReorder } from './sudoku/progress'
 import type { GameProps } from './types'
 import './sudoku/sudoku.css'
 
@@ -11,6 +11,7 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null)
   const level = selectedLevel === null ? null : sudokuLevels[selectedLevel]
   const complete = new Set(storage.getCompletedLevels())
+  const unlockedBeforeReorder = getUnlockedBeforeReorder(storage, complete)
   const Icon = game.icon
   const completedCount = sudokuLevels.filter(({ levelId }) => complete.has(levelId)).length
 
@@ -31,6 +32,7 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
         <PlaySudoku
           key={level.levelId}
           level={level}
+          levelNumber={selectedLevel + 1}
           storage={storage}
           playSound={playSound}
           onBack={backToLevels}
@@ -66,7 +68,9 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
       <ul className="sudoku-level-grid">
         {sudokuLevels.map((item, index) => {
           const finished = complete.has(item.levelId)
-          const locked = !finished && index > 0 && !complete.has(sudokuLevels[index - 1].levelId)
+          const previousLevel = sudokuLevels[index - 1]
+          const available = !previousLevel || complete.has(previousLevel.levelId) || unlockedBeforeReorder.includes(item.levelId)
+          const locked = !finished && !available
           const best = getBestTime(storage, item.levelId)
 
           return (
@@ -79,7 +83,7 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
                 onClick={() => startLevel(index)}
               >
                 <span className="sudoku-level-top">
-                  第 {item.levelId} 关
+                  第 {index + 1} 关
                   {locked ? <LockKeyhole size={16} aria-hidden /> : finished ? <Check size={18} aria-hidden /> : <ArrowRight size={18} aria-hidden />}
                 </span>
                 <span className="sudoku-level-title">{item.title}</span>
