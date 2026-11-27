@@ -81,12 +81,13 @@ npm run dev
 | `game` | 当前注册项，组件可读取标题、图标、分类和配色。 |
 | `storage` | 已绑定当前 `game.id` 的 `GameStorage` 实例。 |
 | `playSound(effect)` | 播放 `SoundEffect` 指定的合成音效，遵循全局音效设置。 |
+| `registerActiveRoundReset?` | 注册当前关卡的重开清理回调，返回注销函数。数独用它在手动重开时清除所选关卡的暂停存档。 |
 
 ### 路由和生命周期
 
 1. 大厅的 `onOpenGame(id)` 调用 `openGame(id)`。它写入 `#/games/<id>`，并发出 `hashchange`。应用用 `gameHash(id)` 在注册表中匹配游戏。新注册项会自动出现在大厅，并可以通过对应哈希进入。
 2. 回到大厅会卸载游戏组件。导航记录带 `pocketArcadeFromLobby` 时调用浏览器返回，否则跳转到 `lobbyHash`（`#/`）。Android 系统返回键在游戏页回大厅，在大厅退出应用。
-3. 点「重新开始」时，应用先调用当前游戏的 `clearSavedRound(storage)`，再递增 `round` 并以新的 React `key` 挂载游戏。游戏组件的初始状态和副作用会重新初始化。 [导航服务](../src/services/navigation.ts) · [应用入口](../src/App.tsx)
+3. 点「重新开始」时，应用调用已注册的当前关卡重开清理回调和游戏的 `clearSavedRound(storage)`，再递增 `round` 并以新的 React `key` 挂载游戏。游戏组件的初始状态和副作用会重新初始化。 [导航服务](../src/services/navigation.ts) · [应用入口](../src/App.tsx)
 
 | `App.tsx` 变量 | 用途 |
 | --- | --- |
@@ -272,7 +273,7 @@ export const gameRegistry: readonly GameModule[] = [
 
 ## 新增数独关卡
 
-将新题插入 `sudokuLevels` 数组中对应的星级位置，保持难度由低到高。选关页和游玩页按数组位置显示关卡号，前一关通关后解锁下一项，结算页的「下一关」也沿用这个顺序。已有 `levelId` 对应玩家的通关和最佳用时，发布后请保持它与题目对应。升级到十题版时，原有存档仍可进入此前已解锁的关卡。 [题库](../src/data/sudokuLevels.ts)
+将新题插入 `sudokuLevels` 数组中对应的星级位置，保持难度由低到高。选关页可进入任意一关，选关页和游玩页按数组位置显示关卡号，结算页的「下一关」也沿用这个顺序。已有 `levelId` 对应玩家的通关、最佳用时和暂停存档，发布后请保持它与题目对应。 [题库](../src/data/sudokuLevels.ts)
 
 | 字段 | 填写要求 |
 | --- | --- |
@@ -307,6 +308,8 @@ npm run verify:sudoku
 新增的五道入门题取自 David Radcliffe 发布的 CC0 题库第 2 版，原题 ID 标在源码中。三道一星题补充了给定数，再按本项目的技巧规则重新验证。 [David Radcliffe 的数独题库](https://www.kaggle.com/datasets/radcliffe/3-million-sudoku-puzzles-with-ratings)
 
 游玩时，`givens` 是题目给定值，`values` 是当前棋盘，`notes` 是每格的候选位掩码，`selected` 是选中格的下标。`correctCounts` 按答案统计每个数字正确就位的次数。完成后用 `storage.completeLevel(levelId)` 记录进度，用 `best-time:<levelId>` 记录耗时最短的毫秒值。 [游玩组件](../src/games/sudoku/PlaySudoku.tsx) · [关卡记录](../src/games/sudoku/progress.ts)
+
+暂停时以 `paused-round:<levelId>` 保存盘面、候选笔记和已用时间。再次选中该关会停在遮挡的棋盘上，点「继续」后清除这份暂停存档并恢复计时。顶部「重新开始」只清除当前关卡的暂停存档。 [暂停存档](../src/games/sudoku/storage.ts)
 
 ## 俄罗斯方块规则和存档
 

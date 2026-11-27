@@ -1,9 +1,10 @@
-import { ChevronLeft, Clock3, Eraser, Lightbulb, Pencil, Trophy } from 'lucide-react'
+import { ChevronLeft, Clock3, Eraser, Lightbulb, Pause, Pencil, Play, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { SudokuLevel } from '../../data/sudokuLevels'
 import type { GameProps } from '../types'
 import { columnOf, conflictingCells, correctDigitCounts, rowOf, sharesUnit, sudokuDigits } from './board'
 import { completeSudokuLevel, formatSudokuTime } from './progress'
+import { clearPausedSudokuRound, readPausedSudokuRound, savePausedSudokuRound } from './storage'
 
 interface PlaySudokuProps {
   level: SudokuLevel
@@ -59,25 +60,41 @@ function VictoryDialog({ result, onBack, onNext }: {
 export function PlaySudoku({ level, levelNumber, storage, playSound, onBack, onNext }: PlaySudokuProps) {
   const givens = useMemo(() => Array.from(level.puzzle, Number), [level.puzzle])
   const solution = useMemo(() => Array.from(level.solution, Number), [level.solution])
-  const [values, setValues] = useState(givens)
-  const [notes, setNotes] = useState(() => Array<number>(givens.length).fill(0))
-  const [selected, setSelected] = useState<number | null>(null)
-  const [noteMode, setNoteMode] = useState(false)
-  const [startedAt] = useState(() => performance.now())
-  const [elapsed, setElapsed] = useState(0)
+  const [savedRound] = useState(() => readPausedSudokuRound(storage, level))
+  const [values, setValues] = useState(savedRound?.values ?? givens)
+  const [notes, setNotes] = useState(() => savedRound?.notes ?? Array<number>(givens.length).fill(0))
+  const [selected, setSelected] = useState<number | null>(savedRound?.selected ?? null)
+  const [noteMode, setNoteMode] = useState(savedRound?.noteMode ?? false)
+  const [startedAt, setStartedAt] = useState<number | null>(() => savedRound ? null : performance.now())
+  const [elapsed, setElapsed] = useState(savedRound?.elapsedMs ?? 0)
   const [result, setResult] = useState<LevelResult | null>(null)
+  const paused = startedAt === null
   const correctCounts = useMemo(() => correctDigitCounts(values, solution), [values, solution])
   const conflicts = useMemo(() => conflictingCells(values), [values])
-  const editableCell = selected !== null && !givens[selected] && !result ? selected : null
+  const editableCell = selected !== null && !givens[selected] && !result && !paused ? selected : null
   const selectedValue = selected === null ? 0 : values[selected]
 
   useEffect(() => {
-    if (result) return
+    if (startedAt === null || result) return
     const timer = window.setInterval(() => setElapsed(performance.now() - startedAt), 500)
     return () => window.clearInterval(timer)
   }, [result, startedAt])
 
+  function togglePaused() {
+    if (startedAt === null) {
+      clearPausedSudokuRound(storage, level.levelId)
+      setStartedAt(performance.now() - elapsed)
+    } else {
+      const elapsedMs = Math.floor(performance.now() - startedAt)
+      savePausedSudokuRound(storage, level.levelId, { values, notes, selected, noteMode, elapsedMs })
+      setElapsed(elapsedMs)
+      setStartedAt(null)
+    }
+    playSound('click')
+  }
+
   function writeValue(cell: number, digit: number) {
+    if (startedAt === null) return
     const updated = [...values]
     updated[cell] = digit
     setValues(updated)
@@ -115,95 +132,110 @@ export function PlaySudoku({ level, levelNumber, storage, playSound, onBack, onN
         <button className="sudoku-back" type="button" onClick={onBack}>
           <ChevronLeft size={19} aria-hidden /> 关卡选择
         </button>
-        <span className="sudoku-time"><Clock3 size={16} aria-hidden /> {formatSudokuTime(result?.elapsed ?? elapsed)}</span>
+        <div className="sudoku-play-actions">
+          <span className="sudoku-time"><Clock3 size={16} aria-hidden /> {formatSudokuTime(result?.elapsed ?? elapsed)}</span>
+          <button className="sudoku-tool sudoku-pause-toggle" type="button" onClick={togglePaused} disabled={Boolean(result)}>
+            {paused ? <Play size={16} aria-hidden /> : <Pause size={16} aria-hidden />}
+            {paused ? '继续' : '暂停'}
+          </button>
+        </div>
       </div>
       <div className="sudoku-play-heading">
         <h1 id="sudoku-title">{level.title}</h1>
         <span>第 {levelNumber} 关</span>
       </div>
 
-      <div className="sudoku-board" role="group" aria-label="9×9 数独棋盘">
-        {values.map((value, cell) => {
-          const fixed = Boolean(givens[cell])
-          const sameNumber = value > 0 && value === selectedValue
-          const candidates = sudokuDigits.filter((digit) => notes[cell] & (1 << digit))
-          const cellLabel = `第 ${rowOf(cell) + 1} 行第 ${columnOf(cell) + 1} 列，` +
-            (value ? `${value}${fixed ? '，题目给定' : ''}` : candidates.length ? `候选 ${candidates.join('、')}` : '空格')
+      {paused && (
+        <div className="sudoku-board sudoku-pause-cover">
+          <div className="sudoku-pause-message" role="status">
+            <Pause size={32} aria-hidden />
+            <strong>已暂停</strong>
+          </div>
+        </div>
+      )}
+      <div hidden={paused}>
+        <div className="sudoku-board" role="group" aria-label="9×9 数独棋盘">
+          {values.map((value, cell) => {
+            const fixed = Boolean(givens[cell])
+            const sameNumber = value > 0 && value === selectedValue
+            const candidates = sudokuDigits.filter((digit) => notes[cell] & (1 << digit))
+            const cellLabel = `第 ${rowOf(cell) + 1} 行第 ${columnOf(cell) + 1} 列，` +
+              (value ? `${value}${fixed ? '，题目给定' : ''}` : candidates.length ? `候选 ${candidates.join('、')}` : '空格')
 
-          return (
-            <button
-              key={cell}
-              className="sudoku-cell"
-              type="button"
-              aria-label={cellLabel}
-              aria-pressed={cell === selected}
-              data-fixed={fixed}
-              data-peer={selected !== null && sharesUnit(cell, selected)}
-              data-match={sameNumber}
-              data-conflict={!fixed && conflicts[cell]}
-              onClick={() => setSelected(cell)}
-            >
-              {value || (candidates.length > 0 && (
-                <span className="sudoku-notes" aria-hidden>
-                  {sudokuDigits.map((digit) => <span key={digit}>{(notes[cell] & (1 << digit)) ? digit : ''}</span>)}
-                </span>
-              ))}
-            </button>
-          )
-        })}
-      </div>
+            return (
+              <button
+                key={cell}
+                className="sudoku-cell"
+                type="button"
+                aria-label={cellLabel}
+                aria-pressed={cell === selected}
+                data-fixed={fixed}
+                data-peer={selected !== null && sharesUnit(cell, selected)}
+                data-match={sameNumber}
+                data-conflict={!fixed && conflicts[cell]}
+                onClick={() => setSelected(cell)}
+              >
+                {value || (candidates.length > 0 && (
+                  <span className="sudoku-notes" aria-hidden>
+                    {sudokuDigits.map((digit) => <span key={digit}>{(notes[cell] & (1 << digit)) ? digit : ''}</span>)}
+                  </span>
+                ))}
+              </button>
+            )
+          })}
+        </div>
 
-      <div className="sudoku-input-message" role="status">
-        {showFullBoardHint ? '棋盘已填满，请检查冲突。' : noteMode ? '笔记模式下可为当前空格记录候选数字。' : selected === null ? '先点选棋盘格子，再输入数字。' : ''}
+        <div className="sudoku-input-message" role="status">
+          {showFullBoardHint ? '棋盘已填满，请检查冲突。' : noteMode ? '笔记模式下可为当前空格记录候选数字。' : selected === null ? '先点选棋盘格子，再输入数字。' : ''}
+        </div>
+        <div className="sudoku-keypad" role="group" aria-label="数字键盘">
+          {sudokuDigits.map((digit) => {
+            const done = correctCounts[digit] === 9
+            return (
+              <button
+                key={digit}
+                className="sudoku-number"
+                type="button"
+                aria-label={done ? `数字 ${digit}，已正确填满` : `数字 ${digit}`}
+                data-filled={done}
+                disabled={done || editableCell === null || (noteMode && Boolean(values[editableCell]))}
+                onClick={() => enterDigit(digit)}
+              >
+                {digit}
+              </button>
+            )
+          })}
+        </div>
+        <div className="sudoku-tools" role="group" aria-label="棋盘工具">
+          <button
+            className="sudoku-tool"
+            type="button"
+            disabled={editableCell === null || (!values[editableCell] && !notes[editableCell])}
+            onClick={() => { if (editableCell !== null) writeValue(editableCell, 0) }}
+          >
+            <Eraser size={18} aria-hidden /> 擦除
+          </button>
+          <button
+            className="sudoku-tool"
+            type="button"
+            aria-pressed={noteMode}
+            onClick={() => {
+              setNoteMode((previous) => !previous)
+              playSound('click')
+            }}
+          >
+            <Pencil size={18} aria-hidden /> 笔记模式
+          </button>
+          <button
+            className="sudoku-tool"
+            type="button"
+            disabled={editableCell === null || values[editableCell] === solution[editableCell]}
+            onClick={() => { if (editableCell !== null) writeValue(editableCell, solution[editableCell]) }}
+          >
+            <Lightbulb size={18} aria-hidden /> 提示
+          </button>
+        </div>
       </div>
-      <div className="sudoku-keypad" role="group" aria-label="数字键盘">
-        {sudokuDigits.map((digit) => {
-          const done = correctCounts[digit] === 9
-          return (
-            <button
-              key={digit}
-              className="sudoku-number"
-              type="button"
-              aria-label={done ? `数字 ${digit}，已正确填满` : `数字 ${digit}`}
-              data-filled={done}
-              disabled={done || editableCell === null || (noteMode && Boolean(values[editableCell]))}
-              onClick={() => enterDigit(digit)}
-            >
-              {digit}
-            </button>
-          )
-        })}
-      </div>
-      <div className="sudoku-tools" role="group" aria-label="棋盘工具">
-        <button
-          className="sudoku-tool"
-          type="button"
-          disabled={editableCell === null || (!values[editableCell] && !notes[editableCell])}
-          onClick={() => { if (editableCell !== null) writeValue(editableCell, 0) }}
-        >
-          <Eraser size={18} aria-hidden /> 擦除
-        </button>
-        <button
-          className="sudoku-tool"
-          type="button"
-          aria-pressed={noteMode}
-          onClick={() => {
-            setNoteMode((previous) => !previous)
-            playSound('click')
-          }}
-        >
-          <Pencil size={18} aria-hidden /> 笔记模式
-        </button>
-        <button
-          className="sudoku-tool"
-          type="button"
-          disabled={editableCell === null || values[editableCell] === solution[editableCell]}
-          onClick={() => { if (editableCell !== null) writeValue(editableCell, solution[editableCell]) }}
-        >
-          <Lightbulb size={18} aria-hidden /> 提示
-        </button>
-      </div>
-
       {result && <VictoryDialog result={result} onBack={onBack} onNext={onNext} />}
     </>
   )

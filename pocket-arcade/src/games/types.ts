@@ -7,6 +7,7 @@ export interface GameProps {
   game: GameModule
   storage: GameStorage
   playSound: (effect: SoundEffect) => void
+  registerActiveRoundReset?: (reset: () => void) => () => void
 }
 
 export interface GameModule {

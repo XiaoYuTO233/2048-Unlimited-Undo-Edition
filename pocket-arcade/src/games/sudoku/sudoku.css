@@ -68,18 +68,13 @@
   text-align: left;
 }
 
-.sudoku-level:not(:disabled):hover {
+.sudoku-level:hover {
   border-color: var(--accent);
   background: var(--raised);
 }
 
-.sudoku-level[data-state="available"] {
+.sudoku-level[data-state="paused"] {
   border-color: var(--accent);
-}
-
-.sudoku-level:disabled {
-  color: var(--quiet);
-  cursor: default;
 }
 
 .sudoku-level-top {
@@ -104,10 +99,6 @@
   color: var(--accent);
 }
 
-.sudoku-level:disabled .sudoku-stars {
-  color: var(--quiet);
-}
-
 .sudoku-level-status,
 .sudoku-level-best {
   color: var(--subtle);
@@ -115,7 +106,9 @@
 }
 
 .sudoku-level[data-state="complete"] .sudoku-level-status,
-.sudoku-level[data-state="complete"] .sudoku-level-top svg {
+.sudoku-level[data-state="complete"] .sudoku-level-top svg,
+.sudoku-level[data-state="paused"] .sudoku-level-status,
+.sudoku-level[data-state="paused"] .sudoku-level-top svg {
   color: var(--accent);
   font-weight: 750;
 }
@@ -132,6 +125,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.55rem;
+}
+
+.sudoku-play-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sudoku-play-actions .sudoku-pause-toggle {
+  min-height: 2.75rem;
+  padding-inline: 0.6rem;
 }
 
 .sudoku-play-heading {
@@ -182,6 +186,19 @@
   border: 2px solid var(--sudoku-box-line);
   border-radius: 0.55rem;
   overflow: hidden;
+}
+
+.sudoku-pause-cover {
+  grid-template: 1fr / 1fr;
+  place-items: center;
+  background: var(--surface);
+}
+
+.sudoku-pause-message {
+  display: grid;
+  justify-items: center;
+  gap: 0.65rem;
+  color: var(--accent);
 }
 
 .sudoku-cell {

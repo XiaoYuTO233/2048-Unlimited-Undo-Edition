@@ -1,6 +1,6 @@
 import { App as AndroidApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { AppHeader } from './components/AppHeader'
 import { Lobby } from './components/Lobby'
 import { gameRegistry } from './games/registry'
@@ -29,8 +29,16 @@ export function App() {
   const storage = useMemo(() => gameId ? StorageService.forGame(gameId) : null, [gameId])
   const Game = game?.component
   const main = useRef<HTMLElement>(null)
+  const activeRoundReset = useRef<(() => void) | null>(null)
   const page = isSudokuTechniques ? sudokuTechniquesHash : gameId
   const previousPage = useRef(page)
+
+  const registerActiveRoundReset = useCallback((reset: () => void) => {
+    activeRoundReset.current = reset
+    return () => {
+      if (activeRoundReset.current === reset) activeRoundReset.current = null
+    }
+  }, [])
 
   useEffect(() => {
     applyTheme(preferences.theme)
@@ -76,6 +84,7 @@ export function App() {
   }
 
   function restartGame() {
+    activeRoundReset.current?.()
     if (storage) game?.clearSavedRound?.(storage)
     AudioService.play('restart')
     setRound((previous) => previous + 1)
@@ -103,7 +112,13 @@ export function App() {
         {isSudokuTechniques ? (
           <SudokuTechniques color={game?.color} playSound={AudioService.play} />
         ) : game && Game && storage ? (
-          <Game key={`${game.id}:${round}`} game={game} storage={storage} playSound={AudioService.play} />
+          <Game
+            key={`${game.id}:${round}`}
+            game={game}
+            storage={storage}
+            playSound={AudioService.play}
+            registerActiveRoundReset={registerActiveRoundReset}
+          />
         ) : (
           <Lobby onOpenGame={(id) => {
             AudioService.play('enter')

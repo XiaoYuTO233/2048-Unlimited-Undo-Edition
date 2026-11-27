@@ -1,19 +1,24 @@
-import { ArrowRight, BookOpen, Check, Clock3, LockKeyhole, Star } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowRight, BookOpen, Check, Clock3, Play, Star } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { sudokuLevels } from '../data/sudokuLevels'
 import { openSudokuTechniques } from '../services/navigation'
 import { PlaySudoku } from './sudoku/PlaySudoku'
-import { formatSudokuTime, getBestTime, getUnlockedBeforeReorder } from './sudoku/progress'
+import { formatSudokuTime, getBestTime } from './sudoku/progress'
+import { clearPausedSudokuRound, readPausedSudokuRound } from './sudoku/storage'
 import type { GameProps } from './types'
 import './sudoku/sudoku.css'
 
-export function Sudoku({ game, storage, playSound }: GameProps) {
+export function Sudoku({ game, storage, playSound, registerActiveRoundReset }: GameProps) {
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null)
   const level = selectedLevel === null ? null : sudokuLevels[selectedLevel]
   const complete = new Set(storage.getCompletedLevels())
-  const unlockedBeforeReorder = getUnlockedBeforeReorder(storage, complete)
   const Icon = game.icon
   const completedCount = sudokuLevels.filter(({ levelId }) => complete.has(levelId)).length
+
+  useEffect(() => {
+    if (!level) return
+    return registerActiveRoundReset?.(() => clearPausedSudokuRound(storage, level.levelId))
+  }, [level, registerActiveRoundReset, storage])
 
   function backToLevels() {
     setSelectedLevel(null)
@@ -68,9 +73,8 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
       <ul className="sudoku-level-grid">
         {sudokuLevels.map((item, index) => {
           const finished = complete.has(item.levelId)
-          const previousLevel = sudokuLevels[index - 1]
-          const available = !previousLevel || complete.has(previousLevel.levelId) || unlockedBeforeReorder.includes(item.levelId)
-          const locked = !finished && !available
+          const paused = readPausedSudokuRound(storage, item) !== null
+          const LevelIcon = paused ? Play : finished ? Check : ArrowRight
           const best = getBestTime(storage, item.levelId)
 
           return (
@@ -78,13 +82,12 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
               <button
                 className="sudoku-level"
                 type="button"
-                disabled={locked}
-                data-state={locked ? 'locked' : finished ? 'complete' : 'available'}
+                data-state={paused ? 'paused' : finished ? 'complete' : 'available'}
                 onClick={() => startLevel(index)}
               >
                 <span className="sudoku-level-top">
                   第 {index + 1} 关
-                  {locked ? <LockKeyhole size={16} aria-hidden /> : finished ? <Check size={18} aria-hidden /> : <ArrowRight size={18} aria-hidden />}
+                  <LevelIcon size={16} aria-hidden />
                 </span>
                 <span className="sudoku-level-title">{item.title}</span>
                 <span className="sudoku-stars" aria-label={`难度 ${item.difficulty} 星`}>
@@ -93,7 +96,7 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
                   ))}
                 </span>
                 <span className="sudoku-level-status">
-                  {locked ? '未解锁' : finished ? '已通关' : '可挑战'}
+                  {paused ? '已暂停 · 可继续' : finished ? '已通关' : '可挑战'}
                 </span>
                 {best !== null && (
                   <span className="sudoku-level-best"><Clock3 size={13} aria-hidden /> 最佳用时 {formatSudokuTime(best)}</span>
