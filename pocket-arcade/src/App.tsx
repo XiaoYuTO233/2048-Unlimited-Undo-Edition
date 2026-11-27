@@ -4,8 +4,12 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 import { AppHeader } from './components/AppHeader'
 import { Lobby } from './components/Lobby'
 import { gameRegistry } from './games/registry'
+import { SudokuTechniques } from './games/sudoku/SudokuTechniques'
 import { AudioService } from './services/audio'
-import { gameHash, getLocationHash, openGame, returnToLobby, subscribeToNavigation } from './services/navigation'
+import {
+  gameHash, getLocationHash, openGame, returnToLobby, returnToSudokuLevels,
+  subscribeToNavigation, sudokuLevelsHash, sudokuTechniquesHash,
+} from './services/navigation'
 import { StorageService } from './services/storage'
 import type { Preferences, Theme } from './services/storage'
 
@@ -18,12 +22,15 @@ export function App() {
   const [preferences, setPreferences] = useState(StorageService.getPreferences)
   const [round, setRound] = useState(0)
   const hash = useSyncExternalStore(subscribeToNavigation, getLocationHash)
-  const game = gameRegistry.find((module) => gameHash(module.id) === hash)
+  const isSudokuTechniques = hash === sudokuTechniquesHash
+  const gameRoute = isSudokuTechniques ? sudokuLevelsHash : hash
+  const game = gameRegistry.find((module) => gameHash(module.id) === gameRoute)
   const gameId = game?.id
   const storage = useMemo(() => gameId ? StorageService.forGame(gameId) : null, [gameId])
   const Game = game?.component
   const main = useRef<HTMLElement>(null)
-  const previousGameId = useRef(gameId)
+  const page = isSudokuTechniques ? sudokuTechniquesHash : gameId
+  const previousPage = useRef(page)
 
   useEffect(() => {
     applyTheme(preferences.theme)
@@ -31,19 +38,21 @@ export function App() {
   }, [preferences])
 
   useEffect(() => {
-    if (previousGameId.current === gameId) return
+    if (previousPage.current === page) return
 
-    previousGameId.current = gameId
+    previousPage.current = page
     main.current?.focus({ preventScroll: true })
     window.scrollTo(0, 0)
-  }, [gameId])
+  }, [page])
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
 
     const listener = AndroidApp.addListener('backButton', () => {
-      const inGame = gameRegistry.some((module) => gameHash(module.id) === getLocationHash())
-      if (inGame) {
+      const currentHash = getLocationHash()
+      if (currentHash === sudokuTechniquesHash) {
+        returnToSudokuLevels()
+      } else if (gameRegistry.some((module) => gameHash(module.id) === currentHash)) {
         returnToLobby()
       } else {
         void AndroidApp.exitApp()
@@ -66,20 +75,24 @@ export function App() {
     if (soundEnabled) AudioService.play('click')
   }
 
+  function restartGame() {
+    if (storage) game?.clearSavedRound?.(storage)
+    AudioService.play('restart')
+    setRound((previous) => previous + 1)
+  }
+
   return (
     <div className="app-shell overscroll-none select-none">
       <AppHeader
         inGame={Boolean(game)}
+        backLabel={isSudokuTechniques ? '返回选关' : '返回大厅'}
         preferences={preferences}
         onBack={() => {
           AudioService.play('click')
-          returnToLobby()
+          if (isSudokuTechniques) returnToSudokuLevels()
+          else returnToLobby()
         }}
-        onRestart={() => {
-          if (storage) game?.clearSavedRound?.(storage)
-          AudioService.play('restart')
-          setRound((previous) => previous + 1)
-        }}
+        onRestart={isSudokuTechniques ? undefined : restartGame}
         onToggleSound={toggleSound}
         onToggleTheme={() => {
           updatePreferences({ ...preferences, theme: preferences.theme === 'dark' ? 'light' : 'dark' })
@@ -87,7 +100,9 @@ export function App() {
         }}
       />
       <main ref={main} className="shell main-content" tabIndex={-1}>
-        {game && Game && storage ? (
+        {isSudokuTechniques ? (
+          <SudokuTechniques color={game?.color} playSound={AudioService.play} />
+        ) : game && Game && storage ? (
           <Game key={`${game.id}:${round}`} game={game} storage={storage} playSound={AudioService.play} />
         ) : (
           <Lobby onOpenGame={(id) => {

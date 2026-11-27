@@ -11,7 +11,7 @@ export function columnOf(cell: number) {
   return cell % size
 }
 
-function boxOf(cell: number) {
+export function boxOf(cell: number) {
   return Math.floor(rowOf(cell) / boxSize) * boxSize + Math.floor(columnOf(cell) / boxSize)
 }
 
