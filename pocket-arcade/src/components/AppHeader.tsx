@@ -3,15 +3,17 @@ import type { Preferences } from '../services/storage'
 
 interface AppHeaderProps {
   inGame: boolean
+  backLabel?: string
   preferences: Preferences
   onBack: () => void
-  onRestart: () => void
+  onRestart?: () => void
   onToggleSound: () => void
   onToggleTheme: () => void
 }
 
 export function AppHeader({
   inGame,
+  backLabel = '返回大厅',
   preferences,
   onBack,
   onRestart,
@@ -26,9 +28,9 @@ export function AppHeader({
     <header className="app-header">
       <div className="shell header-inner">
         {inGame ? (
-          <button className="header-back" type="button" onClick={onBack} aria-label="返回大厅">
+          <button className="header-back" type="button" onClick={onBack} aria-label={backLabel}>
             <ArrowLeft size={20} aria-hidden />
-            <span>返回大厅</span>
+            <span>{backLabel}</span>
           </button>
         ) : (
           <div className="wordmark">
@@ -41,7 +43,7 @@ export function AppHeader({
         )}
 
         <div className="header-actions">
-          {inGame && (
+          {inGame && onRestart && (
             <button className="icon-button restart-button" type="button" aria-label="重新开始" title="重新开始" onClick={onRestart}>
               <RotateCcw size={19} aria-hidden />
               <span>重新开始</span>

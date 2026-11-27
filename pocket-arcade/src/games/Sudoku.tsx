@@ -1,6 +1,7 @@
-import { ArrowRight, Check, Clock3, LockKeyhole, Star } from 'lucide-react'
+import { ArrowRight, BookOpen, Check, Clock3, LockKeyhole, Star } from 'lucide-react'
 import { useState } from 'react'
 import { sudokuLevels } from '../data/sudokuLevels'
+import { openSudokuTechniques } from '../services/navigation'
 import { PlaySudoku } from './sudoku/PlaySudoku'
 import { formatSudokuTime, getBestTime } from './sudoku/progress'
 import type { GameProps } from './types'
@@ -47,7 +48,19 @@ export function Sudoku({ game, storage, playSound }: GameProps) {
           <div className="card-category">关卡选择</div>
           <h1 id="sudoku-title">{game.title}</h1>
         </div>
-        <span className="sudoku-progress">已通关 {completedCount}/{sudokuLevels.length}</span>
+        <div className="sudoku-level-actions">
+          <span className="sudoku-progress">已通关 {completedCount}/{sudokuLevels.length}</span>
+          <button
+            className="sudoku-tool sudoku-techniques-entry"
+            type="button"
+            onClick={() => {
+              playSound('enter')
+              openSudokuTechniques()
+            }}
+          >
+            <BookOpen size={17} aria-hidden /> 数独技巧
+          </button>
+        </div>
       </div>
 
       <ul className="sudoku-level-grid">
