@@ -7,6 +7,7 @@ import { completeSudokuLevel, formatSudokuTime } from './progress'
 
 interface PlaySudokuProps {
   level: SudokuLevel
+  levelNumber: number
   storage: GameProps['storage']
   playSound: GameProps['playSound']
   onBack: () => void
@@ -55,7 +56,7 @@ function VictoryDialog({ result, onBack, onNext }: {
   )
 }
 
-export function PlaySudoku({ level, storage, playSound, onBack, onNext }: PlaySudokuProps) {
+export function PlaySudoku({ level, levelNumber, storage, playSound, onBack, onNext }: PlaySudokuProps) {
   const givens = useMemo(() => Array.from(level.puzzle, Number), [level.puzzle])
   const solution = useMemo(() => Array.from(level.solution, Number), [level.solution])
   const [values, setValues] = useState(givens)
@@ -118,7 +119,7 @@ export function PlaySudoku({ level, storage, playSound, onBack, onNext }: PlaySu
       </div>
       <div className="sudoku-play-heading">
         <h1 id="sudoku-title">{level.title}</h1>
-        <span>第 {level.levelId} 关</span>
+        <span>第 {levelNumber} 关</span>
       </div>
 
       <div className="sudoku-board" role="group" aria-label="9×9 数独棋盘">

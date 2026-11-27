@@ -205,15 +205,25 @@ async function verifyLevels() {
 
   assert.ok(Array.isArray(sudokuLevels) && sudokuLevels.length > 0, 'The Sudoku bank is empty.')
   const techniqueNames = ['显性唯一', '隐性唯一', '区块排除', '显性数对', 'X-Wing']
+  const levelIds = new Set()
+  const puzzles = new Set()
+  let previousDifficulty = 0
 
   for (const [index, level] of sudokuLevels.entries()) {
     const { levelId, title, difficulty, puzzle, solution } = level
     const label = `第 ${index + 1} 关`
-    assert.equal(levelId, index + 1, `${label}的 levelId 必须按顺序递增`)
+    assert.ok(Number.isSafeInteger(levelId) && levelId > 0, `${label}的 levelId 必须是正整数`)
+    assert.ok(!levelIds.has(levelId), `${label}的 levelId 重复`)
     assert.ok(typeof title === 'string' && title.trim(), `${label}缺少标题`)
     assert.ok(Number.isInteger(difficulty) && difficulty >= 1 && difficulty <= 5, `${label}难度必须是 1–5 的整数`)
+    assert.ok(difficulty >= previousDifficulty, `${label}必须按难度升序排列`)
     assert.match(puzzle, /^[0-9]{81}$/, `${label}题面必须是 81 位数字`)
     assert.ok(puzzle.includes('0'), `${label}必须包含空格`)
+    assert.ok(!puzzles.has(puzzle), `${label}的题面重复`)
+    levelIds.add(levelId)
+    puzzles.add(puzzle)
+    previousDifficulty = difficulty
+
     assert.match(solution, /^[1-9]{81}$/, `${label}答案必须是 81 位非零数字`)
     assert.deepEqual(countSolutions(puzzle), { count: 1, solution }, `${label}必须恰有一个解并与录入答案一致`)
 

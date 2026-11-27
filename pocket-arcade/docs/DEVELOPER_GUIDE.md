@@ -272,21 +272,21 @@ export const gameRegistry: readonly GameModule[] = [
 
 ## 新增数独关卡
 
-追加第 6 关或第 7 关时，把对象加入 `sudokuLevels` 数组末尾。选关页按数组顺序显示，前一关通关后解锁下一项，结算页的「下一关」也沿用这个顺序。已有 `levelId` 对应玩家的通关和最佳用时，发布后请保持它与题目对应。 [题库](../src/data/sudokuLevels.ts)
+将新题插入 `sudokuLevels` 数组中对应的星级位置，保持难度由低到高。选关页和游玩页按数组位置显示关卡号，前一关通关后解锁下一项，结算页的「下一关」也沿用这个顺序。已有 `levelId` 对应玩家的通关和最佳用时，发布后请保持它与题目对应。升级到十题版时，原有存档仍可进入此前已解锁的关卡。 [题库](../src/data/sudokuLevels.ts)
 
 | 字段 | 填写要求 |
 | --- | --- |
-| `levelId` | 整数 ID，从现有最后一关依次递增，例如 `6`、`7`。 |
+| `levelId` | 尚未使用的正整数 ID，例如 `11`。这个值用于存档。 |
 | `title` | 显示在关卡卡片和游玩页面上的名称。 |
 | `difficulty` | `1` 到 `5` 的整数星级。 |
 | `puzzle` | 从左到右、从上到下排列的 81 位数字字符串，`0` 表示空格。 |
 | `solution` | 同顺序的 81 位完整答案，每个位置只允许 `1` 到 `9`。 |
 
-下面是第 6 关的对象格式。将两个占位字符串换成本关的实际数字，再把对象追加到数组。
+下面是新增关卡的对象格式。将两个占位字符串换成本关的实际数字，再按星级插入数组。
 
 ```json
 {
-  "levelId": 6,
+  "levelId": 11,
   "title": "新关卡名称",
   "difficulty": 3,
   "puzzle": "此处填写 81 位题面数字",
@@ -300,9 +300,11 @@ export const gameRegistry: readonly GameModule[] = [
 npm run verify:sudoku
 ```
 
-校验脚本独立计算解数，再从题面用逻辑技巧逐步推出答案。它会检查题面、答案、ID 和星级，要求唯一解与录入答案相同。当前星级的逻辑技巧上限依次为显性唯一、隐性唯一、区块排除、显性数对和 X-Wing。 [校验脚本](../scripts/verify-sudoku.mjs)
+校验脚本独立计算解数，再从题面用逻辑技巧逐步推出答案。它会检查题目去重、ID 唯一、星级顺序及答案一致性。当前星级的逻辑技巧上限依次为显性唯一、隐性唯一、区块排除、显性数对和 X-Wing。 [校验脚本](../scripts/verify-sudoku.mjs)
 
-首次出题参考了 Norvig 公开题库的校验方法和 HoDoKu 的技巧分级。安装包使用随源码提供的原创题库。 [Norvig 数独题库与求解方法](https://www.norvig.com/sudoku.html) · [HoDoKu 推理技巧](https://hodoku.sourceforge.net/en/techniques.php)
+首次出题参考了 Norvig 的校验方法和 HoDoKu 的技巧分级。 [Norvig 数独题库与求解方法](https://www.norvig.com/sudoku.html) · [HoDoKu 推理技巧](https://hodoku.sourceforge.net/en/techniques.php)
+
+新增的五道入门题取自 David Radcliffe 发布的 CC0 题库第 2 版，原题 ID 标在源码中。三道一星题补充了给定数，再按本项目的技巧规则重新验证。 [David Radcliffe 的数独题库](https://www.kaggle.com/datasets/radcliffe/3-million-sudoku-puzzles-with-ratings)
 
 游玩时，`givens` 是题目给定值，`values` 是当前棋盘，`notes` 是每格的候选位掩码，`selected` 是选中格的下标。`correctCounts` 按答案统计每个数字正确就位的次数。完成后用 `storage.completeLevel(levelId)` 记录进度，用 `best-time:<levelId>` 记录耗时最短的毫秒值。 [游玩组件](../src/games/sudoku/PlaySudoku.tsx) · [关卡记录](../src/games/sudoku/progress.ts)
 
