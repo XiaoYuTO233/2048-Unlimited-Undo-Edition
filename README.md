@@ -1,6 +1,6 @@
 # 2048 · 无限撤销版
 
-> **口袋街机 Android 合集**收录 2048、数独、俄罗斯方块和贪吃蛇。 [项目与构建说明](pocket-arcade/README.md) · [开发者指引](pocket-arcade/docs/DEVELOPER_GUIDE.md) · [调试 APK](pocket-arcade/pocket-arcade-debug.apk)
+> **口袋街机 Android 合集**收录 2048、数独、俄罗斯方块和贪吃蛇。 [新项目仓库](https://github.com/XiaoYuTO233/Pocket-Arcade) · [开发者指引](https://github.com/XiaoYuTO233/Pocket-Arcade/blob/main/docs/DEVELOPER_GUIDE.md) · [调试 APK](https://github.com/XiaoYuTO233/Pocket-Arcade/raw/refs/heads/main/pocket-arcade-debug.apk)
 
 一个**单文件实现**的现代 2048 小游戏：HTML + CSS + JS 全部内嵌于一个 `index.html`，零依赖、零构建，双击即玩，同时支持电脑与手机。
 
